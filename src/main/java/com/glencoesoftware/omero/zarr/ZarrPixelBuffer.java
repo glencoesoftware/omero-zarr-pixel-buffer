@@ -26,6 +26,7 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -74,6 +75,12 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     /** Zarr array corresponding to the current resolution level */
     private ZarrArray array;
+
+    /**
+     * Mapping of Z plane indexes in full resolution to
+     * Z plane indexes in current resolution.
+     */
+    private Map<Integer, Integer> zIndexMap;
 
     /** { resolutionLevel, z, c, t, x, y, w, h } vs. tile byte array cache */
     private final AsyncLoadingCache<List<Integer>, byte[]> tileCache;
@@ -191,49 +198,64 @@ public class ZarrPixelBuffer implements PixelBuffer {
         // Check planar read size (sizeX and sizeY only)
         checkReadSize(Arrays.copyOfRange(shape, 3, 5));
 
+        // if reading from a resolution downsampled in Z,
+        // adjust the shape/offset for the Z coordinate only
+        // this ensures that the correct Zs are read from the correct offsets
+        // since the requested shape/offset may not match the underlying array
+        int planes = 1;
+        int originalZIndex = offset[2];
+        if (getSizeZ() != getTrueSizeZ()) {
+          offset[2] = zIndexMap.get(originalZIndex);
+          planes = shape[2];
+          shape[2] = 1;
+        }
+
         try {
             ByteBuffer asByteBuffer = ByteBuffer.wrap(buffer);
             DataType dataType = array.getDataType();
-            switch (dataType) {
-                case u1:
-                case i1:
-                    array.read(buffer, shape, offset);
-                    break;
-                case u2:
-                case i2:
-                {
-                    short[] data = (short[]) array.read(shape, offset);
-                    asByteBuffer.asShortBuffer().put(data);
-                    break;
-                }
-                case u4:
-                case i4:
-                {
-                    int[] data = (int[]) array.read(shape, offset);
-                    asByteBuffer.asIntBuffer().put(data);
-                    break;
-                }
-                case i8:
-                {
-                    long[] data = (long[]) array.read(shape, offset);
-                    asByteBuffer.asLongBuffer().put(data);
-                    break;
-                }
-                case f4:
-                {
-                    float[] data = (float[]) array.read(shape, offset);
-                    asByteBuffer.asFloatBuffer().put(data);
-                    break;
-                }
-                case f8:
-                {
-                    double[] data = (double[]) array.read(shape, offset);
-                    asByteBuffer.asDoubleBuffer().put(data);
-                    break;
-                }
-                default:
-                    throw new IllegalArgumentException(
-                            "Data type " + dataType + " not supported");
+            for (int z=0; z<planes; z++) {
+                offset[2] = zIndexMap.get(originalZIndex + z);
+                switch (dataType) {
+                    case u1:
+                    case i1:
+                        array.read(buffer, shape, offset);
+                        break;
+                    case u2:
+                    case i2:
+                    {
+                        short[] data = (short[]) array.read(shape, offset);
+                        asByteBuffer.asShortBuffer().put(data);
+                        break;
+                    }
+                    case u4:
+                    case i4:
+                    {
+                        int[] data = (int[]) array.read(shape, offset);
+                        asByteBuffer.asIntBuffer().put(data);
+                        break;
+                    }
+                    case i8:
+                    {
+                        long[] data = (long[]) array.read(shape, offset);
+                        asByteBuffer.asLongBuffer().put(data);
+                        break;
+                    }
+                    case f4:
+                    {
+                        float[] data = (float[]) array.read(shape, offset);
+                        asByteBuffer.asFloatBuffer().put(data);
+                        break;
+                    }
+                    case f8:
+                    {
+                        double[] data = (double[]) array.read(shape, offset);
+                        asByteBuffer.asDoubleBuffer().put(data);
+                        break;
+                    }
+                    default:
+                        throw new IllegalArgumentException(
+                                "Data type " + dataType + " not supported");
+                  }
             }
         } catch (InvalidRangeException e) {
             log.error("Error reading Zarr data", e);
@@ -745,6 +767,14 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     @Override
     public int getSizeZ() {
+        // this is expected to be the Z size of the full resolution array
+        return zIndexMap.size();
+    }
+
+    /**
+     * @return Z size of the current underlying Zarr array
+     */
+    private int getTrueSizeZ() {
         return array.getShape()[2];
     }
 
@@ -783,9 +813,28 @@ public class ZarrPixelBuffer implements PixelBuffer {
             throw new IllegalArgumentException(
                     "This Zarr file has no pixel data");
         }
+        if (zIndexMap == null) {
+            zIndexMap = new HashMap<Integer, Integer>();
+        }
+        else {
+            zIndexMap.clear();
+        }
         try {
             array = zarrArrayCache.get(
                     root.resolve(Integer.toString(this.resolutionLevel))).get();
+
+            ZarrArray fullResolutionArray = zarrArrayCache.get(
+                    root.resolve("0")).get();
+
+            // map each Z index in the full resolution array
+            // to a Z index in the subresolution array
+            // if no Z downsampling, this is just an identity map
+            int fullResZ = fullResolutionArray.getShape()[2];
+            int arrayZ = array.getShape()[2];
+            int zStep = fullResZ / arrayZ;
+            for (int z=0; z<fullResZ; z++) {
+                zIndexMap.put(z, z * zStep);
+            }
         } catch (Exception e) {
             // FIXME: Throw the right exception
             throw new RuntimeException(e);

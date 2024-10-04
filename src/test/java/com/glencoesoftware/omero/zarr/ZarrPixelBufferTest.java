@@ -750,4 +750,40 @@ public class ZarrPixelBufferTest {
             zpbuf.setResolutionLevel(3);
         }
     }
+
+    @Test
+    public void testDownsampledZ() throws IOException {
+        int sizeT = 1;
+        int sizeC = 1;
+        int sizeZ = 16;
+        int sizeY = 2048;
+        int sizeX = 2048;
+        int resolutions = 3;
+
+        Pixels pixels = new Pixels(
+                null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        Path output = writeTestZarr(
+                sizeT, sizeC, sizeZ, sizeY, sizeX, "uint8", resolutions);
+
+        // Hack the .zarray to hide Z sections in lower resolutions
+        for (int r=1; r<resolutions; r++) {
+            ObjectMapper mapper = new ObjectMapper();
+            HashMap<String, Object> zArray = mapper.readValue(
+                    Files.readAllBytes(output.resolve("0/" + r + "/.zarray")),
+                    HashMap.class);
+            List<Integer> shape = (List<Integer>) zArray.get("shape");
+            shape.set(2, sizeZ / (int) Math.pow(2, r));
+            mapper.writeValue(output.resolve("0/" + r + "/.zarray").toFile(), zArray);
+        }
+
+        try (ZarrPixelBuffer zpbuf =
+                createPixelBuffer(pixels, output.resolve("0"), sizeX, sizeY)) {
+            // get the last Z section, for each resolution level
+            for (int r=0; r<resolutions; r++) {
+                zpbuf.setResolutionLevel(r);
+
+                byte[] plane = zpbuf.getPlane(sizeZ - 1, 0, 0).getData().array();
+            }
+        }
+    }
 }
