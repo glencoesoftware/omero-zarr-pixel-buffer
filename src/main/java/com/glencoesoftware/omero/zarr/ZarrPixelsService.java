@@ -173,10 +173,6 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
                 if (profile != null) {
                     env.put("s3fs_credential_profile_name", profile);
                 }
-                String anonymous =
-                        Optional.ofNullable(params.get("anonymous"))
-                                .orElse("false");
-                env.put("s3fs_anonymous", anonymous);
                 OmeroS3FilesystemProvider fsp = new OmeroS3FilesystemProvider();
                 FileSystem fs = fsp.newFileSystem(uri, env);
                 return fs.getPath(bucket, rest);
