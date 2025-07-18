@@ -17,7 +17,7 @@ Several dependencies have to be installed on the OMERO.server to make the pixel 
 ### With fatjar option
 
 > Note: The `jar-with-dependencies` file contains the dependencies declared in the `build.gradle` file.
-> If you prefer installing each dependencies separately, please follow the [with build option](#with-build-option) section.
+> If you prefer installing each dependency separately, please follow the [with build option](#with-build-option) section.
 
 Clone the repository:
 
@@ -28,7 +28,7 @@ Run the Gradle build including the tests
     ./gradlew fatjar
 
 Then, install on the OMERO.server
-- omero-zarr-pixel-buffer-x.x.x-jar-with-dependencies.jar, build from the above command
+- omero-zarr-pixel-buffer-x.x.x-jar-with-dependencies.jar, built from the above command
 - [omero-py](https://pypi.org/project/omero-py/) >= 5.21.0
 - `blosc` library for your system
 
@@ -45,8 +45,8 @@ Run the Gradle build including the tests
     ./gradlew build
 
 
-Then, install on the OMERO.server (the versions of the dependencie are available in the `build.gradle` file)
-- omero-zarr-pixel-buffer-x.x.x.jar, build from the above command
+Then, install on the OMERO.server (the version of the dependencies are available in the `build.gradle` file)
+- omero-zarr-pixel-buffer-x.x.x.jar, built from the above command
 - [omero-py](https://pypi.org/project/omero-py/) >= 5.21.0
 - [caffeine](https://repo1.maven.org/maven2/com/github/ben-manes/caffeine/caffeine/)
 - [jzarr](https://repo1.maven.org/maven2/dev/zarr/jzarr/)
