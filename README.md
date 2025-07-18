@@ -10,6 +10,52 @@
 The latest artifacts built and deployed by GitHub actions can be found on the
 [Glencoe Software artifactory](https://artifacts.glencoesoftware.com/)
 
+## Installation
+
+Several dependencies have to be installed on the OMERO.server to make the pixel buffer working.
+
+### With fatjar option
+
+> Note: The `jar-with-dependencies` file contains the dependencies declared in the `build.gradle` file.
+> If you prefer installing each dependencies separately, please follow the [with build option](#with-build-option) section.
+
+Clone the repository:
+
+    git clone https://github.com/glencoesoftware/omero-zarr-pixel-buffer
+
+Run the Gradle build including the tests
+
+    ./gradlew fatjar
+
+Then, install on the OMERO.server
+- omero-zarr-pixel-buffer-x.x.x-jar-with-dependencies.jar, build from the above command
+- [omero-py](https://pypi.org/project/omero-py/) >= 5.21.0
+- `blosc` library for your system
+
+You may need to restart the server.
+
+### With build option
+
+Clone the repository:
+
+    git clone https://github.com/glencoesoftware/omero-zarr-pixel-buffer
+
+Run the Gradle build including the tests
+
+    ./gradlew build
+
+
+Then, install on the OMERO.server (the versions of the dependencie are available in the `build.gradle` file)
+- omero-zarr-pixel-buffer-x.x.x.jar, build from the above command
+- [omero-py](https://pypi.org/project/omero-py/) >= 5.21.0
+- [caffeine](https://repo1.maven.org/maven2/com/github/ben-manes/caffeine/caffeine/)
+- [jzarr](https://repo1.maven.org/maven2/dev/zarr/jzarr/)
+- [s3fs](https://repo1.maven.org/maven2/org/lasersonlab/s3fs/)
+- [aws-java-sdk-s3](https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-s3/)
+- `blosc` library for your system
+
+You may need to restart the server.
+
 ## Usage
 
 The OMERO Zarr Pixel Buffer follows the principles of a classical OMERO.server
