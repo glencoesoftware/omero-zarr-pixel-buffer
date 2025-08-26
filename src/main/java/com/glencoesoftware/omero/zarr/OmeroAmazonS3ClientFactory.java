@@ -30,8 +30,11 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.util.AwsHostNameUtils;
 import com.upplication.s3fs.AmazonS3ClientFactory;
 
 public class OmeroAmazonS3ClientFactory extends AmazonS3ClientFactory {
@@ -71,7 +74,12 @@ public class OmeroAmazonS3ClientFactory extends AmazonS3ClientFactory {
             );
         }
     }
-
+    
+    /**
+     * Retrieves the bucket name from a given URI.
+     * @param uri The URI to handle
+     * @return The bucket name
+     */
     private String getBucketFromUri(URI uri) {
         String path = uri.getPath();
         if (path.startsWith("/")) {
@@ -80,16 +88,32 @@ public class OmeroAmazonS3ClientFactory extends AmazonS3ClientFactory {
         return path.substring(0, path.indexOf("/"));
     }
 
+    /**
+     * Retrieves the region from a given URI.
+     * @param uri The URI to handle
+     * @return The region
+     */
     private String getRegionFromUri(URI uri) {
-        String host = uri.getHost();
-        return host.split("\\.")[1];
+        String region = AwsHostNameUtils.parseRegion(uri.getHost(), null);
+        if (region != null) {
+            return region;
+        }
+        return Regions.DEFAULT_REGION.getName();
+    }
+
+    /**
+     * Retrieves the endpoint from a given URI.
+     * @param uri The URI to handle
+     * @return The endpoint
+     */
+    public String getEndPointFromUri(URI uri) {
+        return "https://" + uri.getHost();
     }
 
     @Override
     public synchronized AmazonS3 getAmazonS3(URI uri, Properties props) {
         //Check if we have a S3 client for this bucket
         String bucket = getBucketFromUri(uri);
-        log.info(bucket);
         if (bucketClientMap.containsKey(bucket)) {
             log.info("Found bucket " + bucket);
             return bucketClientMap.get(bucket);
@@ -99,7 +123,7 @@ public class OmeroAmazonS3ClientFactory extends AmazonS3ClientFactory {
                             .withCredentials(getCredentialsProvider(props))
                             .withClientConfiguration(getClientConfiguration(props))
                             .withMetricsCollector(getRequestMetricsCollector(props))
-                            .withRegion(getRegionFromUri(uri))
+                            .withEndpointConfiguration(new EndpointConfiguration(getEndPointFromUri(uri), getRegionFromUri(uri)))
                             .build();
         bucketClientMap.put(bucket, client);
         return client;
