@@ -27,7 +27,6 @@ import com.bc.zarr.DataType;
 import com.bc.zarr.ZarrArray;
 import com.upplication.s3fs.S3Path;
 import com.upplication.s3fs.S3ReadOnlySeekableByteChannel;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,7 +41,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
 import org.perf4j.slf4j.Slf4JStopWatch;
 
 
@@ -110,7 +108,8 @@ public class OmeroS3ReadOnlySeekableByteChannel implements SeekableByteChannel {
                 throw e;
             }
             // Structure is .zarrayDir/t/c/z/y/x - so we need to go up 5 levels
-            ZarrArray array = ZarrArray.open(path.getParent().getParent().getParent().getParent().getParent());
+            ZarrArray array = ZarrArray.open(
+                    path.getParent().getParent().getParent().getParent().getParent());
             int[] chunkSize = array.getChunks();
             DataType dtype = array.getDataType();
             int chunkArraySize = 1;
