@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.glencoesoftware.omero'
-version = '0.7.0-SNAPSHOT'
+version = '0.7.0-rc2'
 
 compileJava {
     options.release = 11
