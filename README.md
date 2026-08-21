@@ -16,8 +16,7 @@ The OMERO Zarr pixel buffer follows the principles of a classical OMERO.server
 [service extension](https://omero.readthedocs.io/en/stable/developers/Server/ExtendingOmero.html#services).
 It can be included in an OMERO deployment:
 
--   either by adding the JAR file and all its dependencies (`jzarr`, `caffeine`,
-    `s3fs`,  `aws-java-sdk-s3`, `tika-core`) under the `lib/server` directory
+-   either by adding the JAR file and all its dependencies under the `lib/server` directory
     of OMERO.server and restarting the server,
 
 -   or by building a modified version of the OMERO.server binary after declaring
