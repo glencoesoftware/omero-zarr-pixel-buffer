@@ -53,11 +53,10 @@ An OMERO Image or Mask object can be associated to Zarr by setting its
 with the following properties:
 
 -   `entityType` must be set to `com.glencoesoftware.ngff:multiscales`
--   `entityId` must be set to `3`
+-   `entityId` must be set to `3` or `4` (see below)
 -   `lsid` must be set to the path of the Zarr group describing the
-     [multiscales](https://ngff.openmicroscopy.org/0.4/#multiscale-md) image
-     or the [label](https://ngff.openmicroscopy.org/0.4/#label-md) image:
-
+     [multiscales](https://ngff.openmicroscopy.org/specifications/0.5/index.html#multiscales-metadata)
+     Zarr group corresponding to the image or the label image:
     - either the absolute path to the multiscales group if the Zarr is stored on
       the filesystem e.g. `/data/CMU-1.ome.zarr/0`,
     - or the URI specifying the location of the multiscales group if the Zarr is
@@ -67,11 +66,13 @@ with the following properties:
       for the list of the regional AWS S3 endpoints, <bucket> is the bucket name
       and `<prefix>` is the prefix to the Zarr group containing the multiscales image
       e.g. `s3://s3.us-east-1.amazonaws.com/gs-public-zarr-archive/CMU-1.ome.zarr/0`.
-      The URI stored in the `lsid` attribute must be percent-encoded as defined in
-      [RFC3986](https://datatracker.ietf.org/doc/html/rfc3986).
+      If the `entityId` is set to `3`, the URI stored in the `lsid` attribute must
+      be percent-encoded as defined in [RFC3986](https://datatracker.ietf.org/doc/html/rfc3986).
+      If the `entityId` is set to `4`, the URI stored in the `lsid` attribute must
+      be decoded as defined in [RFC3986](https://datatracker.ietf.org/doc/html/rfc3986).
 
 When reading Zarr data from a S3 location, the pixel buffer will look for
-[credentials](https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/credentials.html)
+[credentials](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/credentials.html)
 in the following order to make authenticated requests:
 
 1.  the credentials profiles file, typically located at `~/.aws/credentials` and shared
