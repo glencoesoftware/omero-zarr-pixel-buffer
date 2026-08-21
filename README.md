@@ -4,7 +4,6 @@
 
 - OMERO 5.6+
 - Java 11+
-- [libblosc](https://github.com/Blosc/c-blosc) 1.9.0 or later
 
 ## Artifacts
 
