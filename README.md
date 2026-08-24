@@ -32,11 +32,11 @@ conversion utility.
 
 The data must meet the following requirements:
 
--   the Zarr dataset must be conformant with either the
+-   the Zarr dataset must be conformant with either
     [version 0.4](https://ngff.openmicroscopy.org/specifications/0.4/index.html)
      of the OME-Zarr specification based on the
     [Zarr v2 format](https://zarr-specs.readthedocs.io/en/latest/v2/v2.0.html)
-    or the [version 0.5](https://ngff.openmicroscopy.org/specifications/0.5/index.html)
+    or [version 0.5](https://ngff.openmicroscopy.org/specifications/0.5/index.html)
     of the OME-Zarr specification based on the
     [Zarr v3 format](https://zarr-specs.readthedocs.io/en/latest/v3/core/index.html)
 -   the image (or label image) must have between 2 and 5 declared dimensions
