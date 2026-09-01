@@ -66,4 +66,37 @@ public class ZarrStoreTest {
         Assert.assertEquals("/my/test/path.zarr", pathAndQuery[0]);
         Assert.assertNull(pathAndQuery[1]);
     }
+
+    @Test
+    public void testNormalizePathStripsTrailingSlashes() {
+        Assert.assertEquals(
+                "s3://host/bucket/image.zarr/0?anonymous=true",
+                ZarrStore.normalizePath(
+                        "s3://host/bucket/image.zarr/0/?anonymous=true"));
+
+        Assert.assertEquals(
+                "s3://host/bucket/image.zarr/0?anonymous=true",
+                ZarrStore.normalizePath(
+                        "s3://host/bucket/image.zarr/0///?anonymous=true"));
+
+        Assert.assertEquals(
+                "s3://host/bucket/image.zarr/0",
+                ZarrStore.normalizePath(
+                        "s3://host/bucket/image.zarr/0/"));
+
+        Assert.assertEquals(
+                "https://host/image.zarr",
+                ZarrStore.normalizePath(
+                        "https://host/image.zarr/"));
+
+        Assert.assertEquals(
+                "s3://host/bucket/image.zarr",
+                ZarrStore.normalizePath(
+                        "s3://host/bucket/image.zarr"));
+
+        Assert.assertEquals(
+                "/my/test/path.zarr?anonymous=true",
+                ZarrStore.normalizePath(
+                        "/my/test/path.zarr?anonymous=true"));
+    }
 }

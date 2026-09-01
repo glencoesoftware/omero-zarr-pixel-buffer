@@ -108,12 +108,12 @@ public class ZarrStore {
      */
     public ZarrStore(final String orgPath) throws URISyntaxException, IllegalArgumentException,
         IOException, ZarrException {
-        this.path = orgPath;
-        int zarrIndex = orgPath.lastIndexOf(".zarr");
+        this.path = normalizePath(orgPath);
+        int zarrIndex = path.lastIndexOf(".zarr");
         if (zarrIndex < 0) {
             throw new IllegalArgumentException("Path is not a .zarr");
         }
-        String pathToZarr = orgPath.substring(0, zarrIndex + 5);
+        String pathToZarr = path.substring(0, zarrIndex + 5);
         if (!path.contains("://") || path.startsWith("file")) {
             int sep = path.lastIndexOf(File.separator);
             String storePath = path.substring(0, sep);
@@ -225,6 +225,23 @@ public class ZarrStore {
             }
         }
         return pathAndQuery;
+    }
+
+    /**
+     * Removes trailing slashes from the path component of the given URI while preserving any
+     * query string. Trailing slashes otherwise produce empty path segments when the URI is
+     * split, which leads to malformed S3 keys such as {@code path//zarr.json}.
+     *
+     * @param orgPath the original URI, possibly ending in one or more slashes
+     * @return the URI with trailing slashes removed from the path component
+     */
+    static String normalizePath(String orgPath) {
+        String[] pathAndQuery = splitOnQuery(orgPath);
+        String normalized = pathAndQuery[0];
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized + (pathAndQuery[1] != null ? pathAndQuery[1] : "");
     }
 
     private void assertNoAwsSystemEnvCredentials() {
