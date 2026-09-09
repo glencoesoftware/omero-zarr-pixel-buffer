@@ -277,16 +277,22 @@ public class ZarrPixelBuffer implements PixelBuffer {
         if (multiscales.isEmpty()) {
             throw new IllegalArgumentException("No multiscales metadata found");
         }
+        String version = (String) multiscales.get(0).get("version");
         Object axes = multiscales.get(0).get("axes");
-        List<Map<String, Object>> axesData = Utils.castToListOfObjectMap(axes);
-        if (axesData == null) {
-            log.warn("No axes metadata found, defaulting to standard axes TCZYX");
+        if (axes == null) {
+            // The axes metadata was introduced in version 0.3 of the
+            // OME-Zarr specification. Prior to this, all arrays were
+            // 5 dimensional with dimensions TCZYX
+            if (version != null && !version.equals("0.2") && !version.equals("0.1")) {
+                throw new IllegalArgumentException("No axes metadata found");
+            }
             axesOrder.put(Axis.T, 0);
             axesOrder.put(Axis.C, 1);
             axesOrder.put(Axis.Z, 2);
             axesOrder.put(Axis.Y, 3);
             axesOrder.put(Axis.X, 4);
         } else {
+            List<Map<String, Object>> axesData = Utils.castToListOfObjectMap(axes);
             for (int i = 0; i < axesData.size(); i++) {
                 Map<String, Object> axis = axesData.get(i);
                 String name = axis.get("name").toString().toUpperCase();
