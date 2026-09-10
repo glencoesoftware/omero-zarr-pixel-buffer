@@ -87,8 +87,8 @@ public class ZarrStore {
     /**
      * Constructs a ZarrLocation from the given path.
      *
-     * <p>The path must contain a .zarr extension. The constructor automatically detects the
-     * storage backend based on the URI scheme and initializes the appropriate store. </p>
+     * <p>The constructor automatically detects the storage backend based on the URI
+     * scheme and initializes the appropriate store. </p>
      *
      * <p>For S3 URIs, authentication parameters can be provided as query parameters: </p>
      * <ul>
@@ -99,7 +99,7 @@ public class ZarrStore {
      * </ul>
      * Example: s3://host/bucket/path/data.zarr?anonymous=true
      *
-     * @param orgPath the path to the Zarr, must contain .zarr extension
+     * @param orgPath                   the path to the Zarr
      * @throws URISyntaxException       if the path is not a valid URI
      * @throws IllegalArgumentException if the path does not contain .zarr or uses an unsupported
      *                                  URI scheme
@@ -110,10 +110,12 @@ public class ZarrStore {
         IOException, ZarrException {
         this.path = normalizePath(orgPath);
         int zarrIndex = path.lastIndexOf(".zarr");
+        String pathToZarr;
         if (zarrIndex < 0) {
-            throw new IllegalArgumentException("Path is not a .zarr");
+            pathToZarr = path.substring(0, zarrIndex + 5);
+        } else {
+            pathToZarr = path;
         }
-        String pathToZarr = path.substring(0, zarrIndex + 5);
         if (!path.contains("://") || path.startsWith("file")) {
             int sep = path.lastIndexOf(File.separator);
             String storePath = path.substring(0, sep);
@@ -429,7 +431,7 @@ public class ZarrStore {
     /**
      * Returns the full path to the Zarr.
      *
-     * @return the complete path including the .zarr extension
+     * @return the complete path
      */
     public String getPath() {
         return path;
