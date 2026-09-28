@@ -201,11 +201,11 @@ public class ZarrStore {
         try {
             group = dev.zarr.zarrjava.v3.Group.open(store);
         } catch (NoSuchFileException nsfe) {
-            log.debug("No V3 zarr at {path}", path);
+            log.debug("No V3 zarr at {}", path);
             try {
                 group = dev.zarr.zarrjava.v2.Group.open(store);
             } catch (NoSuchFileException nsfe2) {
-                log.error("Cannot open zarr at {path}", path);
+                log.error("Cannot open zarr at {}", path);
                 throw nsfe2;
             }
         }
