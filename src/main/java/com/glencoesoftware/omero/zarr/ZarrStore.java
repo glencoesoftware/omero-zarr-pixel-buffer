@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -196,7 +197,18 @@ public class ZarrStore {
             throw new IllegalArgumentException("Unsupported URI scheme: "
                     + path.subSequence(0, path.indexOf("://") + 3));
         }
-        Group group = Group.open(store);
+        Group group = null;
+        try {
+            group = dev.zarr.zarrjava.v3.Group.open(store);
+        } catch (NoSuchFileException nsfe) {
+            log.debug("No V3 zarr at {path}", path);
+            try {
+                group = dev.zarr.zarrjava.v2.Group.open(store);
+            } catch (NoSuchFileException nsfe2) {
+                log.error("Cannot open zarr at {path}", path);
+                throw nsfe2;
+            }
+        }
         if (group instanceof dev.zarr.zarrjava.v2.Group) {
             zarrVersion = "2";
         } else if (group instanceof dev.zarr.zarrjava.v3.Group) {
