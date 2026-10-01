@@ -18,14 +18,17 @@
 
 package com.glencoesoftware.omero.zarr;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.glencoesoftware.bioformats2raw.Converter;
 import com.glencoesoftware.bioformats2raw.SupportedVersions;
+import dev.zarr.zarrjava.ZarrException;
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,12 +38,15 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import loci.formats.in.FakeReader;
 import ome.model.core.Pixels;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import picocli.CommandLine;
 
 /** Unit tests for ZarrPixelBuffer. */
@@ -52,15 +58,20 @@ public class ZarrPixelBufferTest {
     static final int SIZE_X = 256;
     static final int SIZE_Y = 128;
     static final String PIXEL_TYPE = "uint8";
+    Path tmpDir;
 
-    static final String NGFF05_HTTP = "https://public.ltd.ovh/output_v05.zarr/0";
-    static final String NGFF04_HTTP = "https://public.ltd.ovh/output_v04.zarr/0";
+    /** Set-up.*/
+    @BeforeEach
+    public void setup(@TempDir Path dir) throws Exception {
+        tmpDir = dir;
+    }
 
-    static final String NGFF05_S3_ANON = "s3://public.ltd.ovh/output_v05.zarr/0/?anonymous=true";
-    static final String NGFF04_S3_ANON = "s3://public.ltd.ovh/output_v04.zarr/0/?anonymous=true";
-
-    @Rule
-    public TemporaryFolder tmpDir = new TemporaryFolder();
+    static Stream<Arguments> getNGFFVersions() {
+        return Stream.of(
+            Arguments.of("0.4"),
+            Arguments.of("0.5")
+        );
+    }
 
     /** Constructor. */
     public ZarrPixelBuffer createPixelBuffer(Pixels pixels, ZarrStore store, Integer maxPlaneWidth,
@@ -68,34 +79,6 @@ public class ZarrPixelBufferTest {
         return new ZarrPixelBuffer(pixels, store, maxPlaneWidth, maxPlaneHeight,
             Caffeine.newBuilder().maximumSize(0).buildAsync(ZarrPixelsService::getZarrMetadata),
             Caffeine.newBuilder().maximumSize(0).buildAsync(ZarrPixelsService::getZarrArray));
-    }
-
-    @Test
-    public void testNGFF05Local() throws Exception {
-        System.out.println("Testing NGFF05Local");
-        Path output = writeTestZarr(
-            SIZE_T, SIZE_C, SIZE_Z, SIZE_Y, SIZE_X, PIXEL_TYPE, "0.5");
-        output = output.resolve("0");
-        test(output.toString());
-    }
-
-    @Test
-    public void testNGFF04Local() throws Exception {
-        System.out.println("Testing NGFF04Local");
-        Path output = writeTestZarr(
-            SIZE_T, SIZE_C, SIZE_Z, SIZE_Y, SIZE_X, PIXEL_TYPE, "0.4");
-        output = output.resolve("0");
-        test(output.toString());
-    }
-
-    void test(String path) throws Exception {
-        System.out.println("Testing path: " + path);
-        ZarrStore store = new ZarrStore(path.toString());
-        System.out.println("Store: " + store);
-        Pixels pixels = new Pixels(null, null, SIZE_X, SIZE_Y, SIZE_Z, SIZE_C, SIZE_T, "", null);
-        try (ZarrPixelBuffer zpbuf = createPixelBuffer(pixels, store, SIZE_X, SIZE_Y)) {
-            testSpecialPixels(zpbuf);
-        }
     }
 
     /**
@@ -121,11 +104,11 @@ public class ZarrPixelBufferTest {
             CommandLine cli = new CommandLine(converter);
             cli.execute(args.toArray(new String[]{}));
             if (ngffVersion != null && ngffVersion.equals(SupportedVersions.NGFF_05.toString())) {
-                Assert.assertTrue(Files.exists(output.resolve("zarr.json")));
+                assertTrue(Files.exists(output.resolve("zarr.json")));
             } else {
-                Assert.assertTrue(Files.exists(output.resolve(".zattrs")));
+                assertTrue(Files.exists(output.resolve(".zattrs")));
             }
-            Assert.assertTrue(Files.exists(
+            assertTrue(Files.exists(
                     output.resolve("OME").resolve("METADATA.ome.xml")));
         } catch (RuntimeException rt) {
             throw rt;
@@ -135,7 +118,7 @@ public class ZarrPixelBufferTest {
     }
 
     static Path fake(String... args) {
-        Assert.assertTrue(args.length % 2 == 0);
+        assertTrue(args.length % 2 == 0);
         Map<String, String> options = new HashMap<String, String>();
         for (int i = 0; i < args.length; i += 2) {
             options.put(args[i], args[i + 1]);
@@ -214,7 +197,7 @@ public class ZarrPixelBufferTest {
     /** Write Zarr multiscales attributes. */
     public Path writeTestZarr(int sizeT, int sizeC, int sizeZ, int sizeY, int sizeX,
         String pixelType, String ngffVersion, String... options) throws IOException {
-        Path output = tmpDir.getRoot().toPath().resolve("output.zarr");
+        Path output = tmpDir.resolve("output.zarr");
         writeTestZarr(output, sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, ngffVersion,
             options);
         return output;
@@ -244,58 +227,35 @@ public class ZarrPixelBufferTest {
 
     /**
      * Checks that the pixels in the zarr array match the expected special pixels.
-     * (Inspired by Bioformats ZarrV3Test.java)
      */
-    public void testSpecialPixels(ZarrPixelBuffer zpb) throws Exception {
-        assertEquals(SIZE_T, zpb.getSizeT());
-        assertEquals(SIZE_C, zpb.getSizeC());
-        assertEquals(SIZE_Z, zpb.getSizeZ());
-        assertEquals(SIZE_Y, zpb.getSizeY());
-        assertEquals(SIZE_X, zpb.getSizeX());
+    @ParameterizedTest
+    @MethodSource("getNGFFVersions")
+    public void testSpecialPixels(String version) throws Exception {
+        Path output = writeTestZarr(
+            SIZE_T, SIZE_C, SIZE_Z, SIZE_Y, SIZE_X, PIXEL_TYPE, version);
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, SIZE_X, SIZE_Y, SIZE_Z, SIZE_C, SIZE_T, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, SIZE_X, SIZE_Y)) {
+            assertEquals(SIZE_T, zpb.getSizeT());
+            assertEquals(SIZE_C, zpb.getSizeC());
+            assertEquals(SIZE_Z, zpb.getSizeZ());
+            assertEquals(SIZE_Y, zpb.getSizeY());
+            assertEquals(SIZE_X, zpb.getSizeX());
 
-        int plane = 0;
-        for (int t = 0; t < SIZE_T; t++) {
-            for (int c = 0; c < SIZE_C; c++) {
-                for (int z = 0; z < SIZE_Z; z++) {
-                    System.out.println("Testing plane " + plane + " (z=" + z + ", "
-                        + "c=" + c + ", t=" + t + ")");
-                    byte[] tileData = zpb.getTile(z, c, t, 0, 0, SIZE_X, SIZE_Y)
-                        .getData().array();
-                    int[] specialPixels = FakeReader.readSpecialPixels(tileData);
-                    assertArrayEquals(new int[] { 0, plane, z, c, t }, specialPixels);
-                    plane++;
+            int plane = 0;
+            for (int t = 0; t < SIZE_T; t++) {
+                for (int c = 0; c < SIZE_C; c++) {
+                    for (int z = 0; z < SIZE_Z; z++) {
+                        System.out.println("Testing plane " + plane + " (z=" + z + ", "
+                            + "c=" + c + ", t=" + t + ")");
+                        byte[] tileData = zpb.getTile(z, c, t, 0, 0, SIZE_X, SIZE_Y)
+                            .getData().array();
+                        int[] specialPixels = FakeReader.readSpecialPixels(tileData);
+                        assertArrayEquals(new int[] { 0, plane, z, c, t }, specialPixels);
+                        plane++;
+                    }
                 }
             }
         }
-    }
-
-    /**
-     * Main method to generate test Zarr files.
-     *
-     * @param args  Not used.
-     */
-    public static void main(String[] args) throws IOException {
-        ZarrPixelBufferTest test = new ZarrPixelBufferTest();
-        Path output;
-
-        output = Paths.get("/tmp").resolve("output_v04.zarr");
-        if (Files.exists(output)) {
-            Files.walk(output)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
-        }
-        test.writeTestZarr(output, SIZE_T, SIZE_C, SIZE_Z, SIZE_Y, SIZE_X, PIXEL_TYPE, "0.4");
-        System.out.println("Created " + output);
-
-        output = Paths.get("/tmp").resolve("output_v05.zarr");
-        if (Files.exists(output)) {
-            Files.walk(output)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
-        }
-        test.writeTestZarr(output, SIZE_T, SIZE_C, SIZE_Z, SIZE_Y, SIZE_X, PIXEL_TYPE, "0.5");
-        System.out.println("Created " + output);
     }
 }
