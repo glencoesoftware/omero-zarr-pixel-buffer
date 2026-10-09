@@ -469,17 +469,17 @@ public class ZarrPixelBufferTest {
     public void testChunks(int tileWidth, int tileHeight, int chunkDepth, String version)
             throws IOException, URISyntaxException, ZarrException {
         int sizeX = 1024;
-        int sizeY = 2028;
+        int sizeY = 2048;
         int resolutions = 3;
         Path output = writeTestZarr(
             1, 1, 8, sizeY, sizeX, "uint8", version,
             "--resolutions", String.valueOf(resolutions),
             "--tile-width", String.valueOf(tileWidth),
-            "--shard-width", String.valueOf(tileWidth),
             "--tile-height", String.valueOf(tileHeight),
-            "--shard-height", String.valueOf(tileHeight),
             "--chunk-depth", String.valueOf(chunkDepth),
-            "--shard-depth", String.valueOf(chunkDepth),
+            "--shard-width", String.valueOf(1),
+            "--shard-height", String.valueOf(1),
+            "--shard-depth", String.valueOf(1),
             "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, sizeX, sizeY, 4, 1, 1, "", null);
@@ -491,6 +491,58 @@ public class ZarrPixelBufferTest {
                 int expectedWidth = Math.min(tileWidth, sizeX / scale);
                 int expectedHeight = Math.min(tileHeight, sizeY / scale);
                 int[] expectedChunks = new int[] {1, 1, chunkDepth, expectedHeight, expectedWidth};
+                assertArrayEquals(chunks[resolution], expectedChunks);
+
+                zpb.setResolutionLevel(resolutions - resolution - 1);
+                assertEquals(zpb.getTileSize().getWidth(), expectedWidth);
+                assertEquals(zpb.getTileSize().getHeight(), expectedHeight);
+            }
+        }
+    }
+
+    static Stream<Arguments> getShards() {
+        return Stream.of(
+            Arguments.of(1024, 1024, 1, 1024, 1024, 1, "0.5"),
+            Arguments.of(1024, 1024, 1, 1024, 1024, 4, "0.5"),
+            Arguments.of(1024, 1024, 1, 1024, 1024, 8, "0.5"),
+            Arguments.of(512, 512, 4, 512, 512, 4, "0.5"),
+            Arguments.of(512, 512, 4, 512, 512, 8, "0.5"),
+            Arguments.of(512, 512, 4, 1024, 1024, 4, "0.5"),
+            Arguments.of(512, 512, 4, 1024, 1024, 8, "0.5"),
+            Arguments.of(256, 256, 8, 256, 256, 8, "0.5"),
+            Arguments.of(512, 256, 8, 1024, 1024, 8, "0.5")
+        );
+    }
+
+    /** Test chunk and tile sizes. */
+    @ParameterizedTest
+    @MethodSource("getShards")
+    public void testShards(int tileWidth, int tileHeight, int chunkDepth, int shardWidth,
+            int shardHeight, int shardDepth, String version)
+            throws IOException, URISyntaxException, ZarrException {
+        int sizeX = 1024;
+        int sizeY = 2048;
+        int resolutions = 3;
+        Path output = writeTestZarr(
+            1, 1, 8, sizeY, sizeX, "uint8", version,
+            "--resolutions", String.valueOf(resolutions),
+            "--tile-width", String.valueOf(tileWidth),
+            "--shard-width", String.valueOf(shardWidth),
+            "--tile-height", String.valueOf(tileHeight),
+            "--shard-height", String.valueOf(shardHeight),
+            "--chunk-depth", String.valueOf(chunkDepth),
+            "--shard-depth", String.valueOf(shardDepth),
+            "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, 4, 1, 1, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            int[][] chunks = zpb.getChunks();
+            assertEquals(chunks.length, resolutions);
+            for (int resolution = 0; resolution < resolutions; resolution++) {
+                int scale = (int) Math.pow(2, resolution);
+                int expectedWidth = Math.min(shardWidth, sizeX / scale);
+                int expectedHeight = Math.min(shardHeight, sizeY / scale);
+                int[] expectedChunks = new int[] {1, 1, shardDepth, expectedHeight, expectedWidth};
                 assertArrayEquals(chunks[resolution], expectedChunks);
 
                 zpb.setResolutionLevel(resolutions - resolution - 1);
