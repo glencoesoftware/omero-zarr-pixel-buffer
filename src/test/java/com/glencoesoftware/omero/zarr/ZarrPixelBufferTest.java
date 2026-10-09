@@ -20,11 +20,14 @@ package com.glencoesoftware.omero.zarr;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.glencoesoftware.bioformats2raw.Converter;
 import com.glencoesoftware.bioformats2raw.SupportedVersions;
+import com.glencoesoftware.omero.zarr.ZarrPixelBuffer.Axis;
 import dev.zarr.zarrjava.ZarrException;
 import java.io.File;
 import java.io.IOException;
@@ -39,38 +42,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import loci.formats.FormatTools;
 import loci.formats.in.FakeReader;
+import ome.io.nio.DimensionsOutOfBoundsException;
 import ome.model.core.Pixels;
+import ome.model.enums.DimensionOrder;
+import ome.xml.model.enums.PixelType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import picocli.CommandLine;
 
 /** Unit tests for ZarrPixelBuffer. */
 public class ZarrPixelBufferTest {
 
-    static final int SIZE_C = 2;
-    static final int SIZE_Z = 3;
-    static final int SIZE_T = 4;
-    static final int SIZE_X = 256;
-    static final int SIZE_Y = 128;
-    static final String PIXEL_TYPE = "uint8";
     Path tmpDir;
 
     /** Set-up.*/
     @BeforeEach
     public void setup(@TempDir Path dir) throws Exception {
         tmpDir = dir;
-    }
-
-    static Stream<Arguments> getNGFFVersions() {
-        return Stream.of(
-            Arguments.of("0.4"),
-            Arguments.of("0.5")
-        );
     }
 
     /** Constructor. */
@@ -88,11 +83,14 @@ public class ZarrPixelBufferTest {
      */
     void assertBioFormats2Raw(Path input, Path output, String ngffVersion, String... additionalArgs)
             throws IOException {
-        List<String> args = new ArrayList<String>(
-                Arrays.asList(new String[] { "--compression", "null" }));
+        List<String> args = new ArrayList<String>();
         if (ngffVersion != null) {
             args.add("--ngff-version");
             args.add(ngffVersion);
+        }
+        if (!Arrays.asList(additionalArgs).contains("--compression")) {
+            args.add("--compression");
+            args.add("blosc");
         }
         for (String arg : additionalArgs) {
             args.add(arg);
@@ -225,37 +223,420 @@ public class ZarrPixelBufferTest {
         assertBioFormats2Raw(input, path, ngffVersion, options);
     }
 
+    private void assertPixels(
+            ZarrPixelBuffer zpb, int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, String order) throws IOException {
+        // Check dimensions
+        assertEquals(sizeT, zpb.getSizeT());
+        assertEquals(sizeC, zpb.getSizeC());
+        assertEquals(sizeZ, zpb.getSizeZ());
+        assertEquals(sizeY, zpb.getSizeY());
+        assertEquals(sizeX, zpb.getSizeX());
+        int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+        int planeSize = zpb.getPlaneSize().intValue();
+        assertEquals(sizeX * sizeY * bytesPerPixel, planeSize);
+        int stackSize = zpb.getStackSize().intValue();
+        assertEquals(sizeZ * sizeX * sizeY * bytesPerPixel, stackSize);
+        int timepointSize = zpb.getTimepointSize().intValue();
+        assertEquals(sizeC * sizeZ * sizeX * sizeY * bytesPerPixel, timepointSize);
+        int totalSize = sizeT * sizeC * sizeZ * sizeX * sizeY * bytesPerPixel;
+        assertEquals(totalSize, zpb.getTotalSize().intValue());
+        assertEquals(sizeY * bytesPerPixel, zpb.getColSize().longValue());
+        assertEquals(sizeX * bytesPerPixel, zpb.getRowSize().longValue());
+
+        // Check pixel types
+        int pixelsTypeInt = FormatTools.pixelTypeFromString(pixelType);
+        assertEquals(pixelsTypeInt, zpb.getPixelsType());
+        assertEquals(FormatTools.isSigned(pixelsTypeInt), zpb.isSigned());
+        assertEquals(FormatTools.isFloatingPoint(pixelsTypeInt), zpb.isFloat());
+        assertEquals(bytesPerPixel, zpb.getByteWidth());
+
+        // Check column/row/tile/plane/stack/timepoint reading
+        byte[] timepointFromPlanes = new byte[timepointSize];
+        byte[] stackFromPlanes =  new byte[stackSize];
+        List<String> channelFirstOrders = Arrays.asList("XYZCT", "XYZTC", "XYTZC");
+        int timepointIndex;
+        for (int t = 0; t < sizeT; t++) {
+            for (int c = 0; c < sizeC; c++) {
+                for (int z = 0; z < sizeZ; z++) {
+                    // Check special pixels are correctly read from getTile/getPlane
+                    int planeNumber = FormatTools.getIndex(
+                        DimensionOrder.VALUE_XYZCT,
+                        sizeZ, sizeC, sizeT, sizeZ * sizeC * sizeT,
+                        z, c, t);
+                    int[] specialPixels = new int[] { 0, planeNumber, z, c, t };
+                    byte[] tileData = zpb.getTile(z, c, t, 0, 0, sizeX, sizeY).getData().array();
+                    assertArrayEquals(specialPixels,
+                        FakeReader.readSpecialPixels(
+                            tileData, FormatTools.pixelTypeFromString(pixelType), false));
+                    byte[] planeData = zpb.getPlane(z, c, t).getData().array();
+                    assertArrayEquals(specialPixels,
+                        FakeReader.readSpecialPixels(
+                            planeData, FormatTools.pixelTypeFromString(pixelType), false));
+
+                    // Check getCol / getRow match getTile
+                    assertArrayEquals(
+                        zpb.getTile(z, c, t, 0, 0, sizeX, 1).getData().array(),
+                        zpb.getRow(0, z, c, t).getData().array());
+                    assertArrayEquals(
+                        zpb.getTile(z, c, t, 0, sizeY / 2, sizeX, 1).getData().array(),
+                        zpb.getRow(sizeY / 2, z, c, t).getData().array());
+                    assertArrayEquals(
+                        zpb.getTile(z, c, t, 0, sizeY - 1, sizeX, 1).getData().array(),
+                        zpb.getRow(sizeY - 1, z, c, t).getData().array());
+                    assertArrayEquals(
+                        zpb.getTile(z, c, t, 0, 0, 1, sizeY).getData().array(),
+                        zpb.getCol(0, z, c, t).getData().array());
+                    assertArrayEquals(
+                        zpb.getTile(z, c, t, sizeX / 2, 0, 1, sizeY).getData().array(),
+                        zpb.getCol(sizeX / 2, z, c, t).getData().array());
+                    assertArrayEquals(
+                        zpb.getTile(z, c, t, sizeX - 1, 0, 1, sizeY).getData().array(),
+                        zpb.getCol(sizeX - 1, z, c, t).getData().array());
+
+                    System.arraycopy(planeData, 0, stackFromPlanes, z * planeSize, planeSize);
+                    if (channelFirstOrders.contains(order)) {
+                        timepointIndex = c * stackSize + z * planeSize;
+                    } else {
+                        timepointIndex = z * sizeC * planeSize + c * planeSize;
+                    }
+                    System.arraycopy(planeData, 0, timepointFromPlanes, timepointIndex, planeSize);
+                }
+                assertArrayEquals(zpb.getStack(c, t).getData().array(), stackFromPlanes);
+            }
+            assertArrayEquals(zpb.getTimepoint(t).getData().array(), timepointFromPlanes);
+        }
+    }
+
+    static Stream<Arguments> getDimensions() {
+        return Stream.of(
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "0.4"),
+            Arguments.of(128, 64, 1, 3, 4, "uint8", "0.4"),
+            Arguments.of(128, 64, 2, 1, 4, "uint8", "0.4"),
+            Arguments.of(128, 64, 2, 3, 1, "uint8", "0.4"),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.4"),
+            Arguments.of(128, 64, 1, 1, 4, "uint8", "0.4"),
+            Arguments.of(128, 64, 1, 3, 1, "uint8", "0.4"),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "0.5"),
+            Arguments.of(128, 64, 1, 3, 4, "uint8", "0.5"),
+            Arguments.of(128, 64, 2, 1, 4, "uint8", "0.5"),
+            Arguments.of(128, 64, 2, 3, 1, "uint8", "0.5"),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.5"),
+            Arguments.of(128, 64, 1, 1, 4, "uint8", "0.5"),
+            Arguments.of(128, 64, 1, 3, 1, "uint8", "0.5"),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5")
+        );
+    }
+
+    static Stream<Arguments> getPixelTypes() {
+        return Stream.of(
+            Arguments.of(128, 64, 1, 1, 1, "int8", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "int16", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "uint16", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "uint32", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "float", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.4"),
+            Arguments.of(128, 64, 1, 1, 1, "int8", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "int16", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "uint16", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "uint32", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "float", "0.5"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.5")
+        );
+    }
+
     /**
-     * Checks that the pixels in the zarr array match the expected special pixels.
+     * Test dimensions and pixel types.
      */
     @ParameterizedTest
-    @MethodSource("getNGFFVersions")
-    public void testSpecialPixels(String version) throws Exception {
-        Path output = writeTestZarr(
-            SIZE_T, SIZE_C, SIZE_Z, SIZE_Y, SIZE_X, PIXEL_TYPE, version);
+    @MethodSource({"getDimensions", "getPixelTypes"})
+    public void testPixels(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version);
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
-        Pixels pixels = new Pixels(null, null, SIZE_X, SIZE_Y, SIZE_Z, SIZE_C, SIZE_T, "", null);
-        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, SIZE_X, SIZE_Y)) {
-            assertEquals(SIZE_T, zpb.getSizeT());
-            assertEquals(SIZE_C, zpb.getSizeC());
-            assertEquals(SIZE_Z, zpb.getSizeZ());
-            assertEquals(SIZE_Y, zpb.getSizeY());
-            assertEquals(SIZE_X, zpb.getSizeX());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, sizeX, sizeY)) {
+            assertPixels(zpb, sizeX, sizeY, sizeZ, sizeC, sizeT, pixelType, "XYZCT");
+        }
+    }
 
-            int plane = 0;
-            for (int t = 0; t < SIZE_T; t++) {
-                for (int c = 0; c < SIZE_C; c++) {
-                    for (int z = 0; z < SIZE_Z; z++) {
-                        System.out.println("Testing plane " + plane + " (z=" + z + ", "
-                            + "c=" + c + ", t=" + t + ")");
-                        byte[] tileData = zpb.getTile(z, c, t, 0, 0, SIZE_X, SIZE_Y)
-                            .getData().array();
-                        int[] specialPixels = FakeReader.readSpecialPixels(tileData);
-                        assertArrayEquals(new int[] { 0, plane, z, c, t }, specialPixels);
-                        plane++;
-                    }
-                }
+    /**
+     * Test compact dimensions.
+     */
+    @ParameterizedTest
+    @MethodSource("getDimensions")
+    public void testPixelsCompactDimensions(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(
+            sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--compact");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, sizeX, sizeY)) {
+            assertPixels(zpb, sizeX, sizeY, sizeZ, sizeC, sizeT, pixelType, "XYZCT");
+        }
+    }
+
+
+    static Stream<Arguments> getDimensionOrders() {
+        return Stream.of(
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZTC", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCZT", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCTZ", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTCZ", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTZC", "0.4"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", "0.5"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZTC", "0.5"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCZT", "0.5"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCTZ", "0.5"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTCZ", "0.5"),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTZC", "0.5")
+        );
+    }
+
+    /**
+     * Test dimension orders.
+     */
+    @ParameterizedTest
+    @MethodSource("getDimensionOrders")
+    public void testPixelsDimensionOrder(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, String order, String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(
+            sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--dimension-order", order);
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, sizeX, sizeY)) {
+            assertPixels(zpb, sizeX, sizeY, sizeZ, sizeC, sizeT, pixelType, order);
+        }
+    }
+
+
+    static Stream<Arguments> getCompressions() {
+        return Stream.of(
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "null"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "zlib"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "null"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "gzip"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "zstd")
+        );
+    }
+
+    /**
+     * Test compressions.
+     */
+    @ParameterizedTest
+    @MethodSource("getCompressions")
+    public void testPixelsCompression(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, String version, String compression)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(
+            sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--compression", compression);
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, sizeX, sizeY)) {
+            assertPixels(zpb, sizeX, sizeY, sizeZ, sizeC, sizeT, pixelType, "XYZCT");
+        }
+    }
+
+    static Stream<Arguments> getChunks() {
+        return Stream.of(
+            Arguments.of(1024, 1024, 1, "0.4"),
+            Arguments.of(1024, 1024, 1, "0.5"),
+            Arguments.of(512, 512, 4, "0.4"),
+            Arguments.of(512, 512, 4, "0.5"),
+            Arguments.of(256, 256, 8, "0.4"),
+            Arguments.of(256, 256, 8, "0.5"),
+            Arguments.of(512, 256, 8, "0.4"),
+            Arguments.of(512, 256, 8, "0.5")
+        );
+    }
+
+    /** Test chunk and tile sizes. */
+    @ParameterizedTest
+    @MethodSource("getChunks")
+    public void testChunks(int tileWidth, int tileHeight, int chunkDepth, String version)
+            throws IOException, URISyntaxException, ZarrException {
+        int sizeX = 1024;
+        int sizeY = 2028;
+        int resolutions = 3;
+        Path output = writeTestZarr(
+            1, 1, 8, sizeY, sizeX, "uint8", version,
+            "--resolutions", String.valueOf(resolutions),
+            "--tile-width", String.valueOf(tileWidth),
+            "--shard-width", String.valueOf(tileWidth),
+            "--tile-height", String.valueOf(tileHeight),
+            "--shard-height", String.valueOf(tileHeight),
+            "--chunk-depth", String.valueOf(chunkDepth),
+            "--shard-depth", String.valueOf(chunkDepth),
+            "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, 4, 1, 1, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            int[][] chunks = zpb.getChunks();
+            assertEquals(chunks.length, resolutions);
+            for (int resolution = 0; resolution < resolutions; resolution++) {
+                int scale = (int) Math.pow(2, resolution);
+                int expectedWidth = Math.min(tileWidth, sizeX / scale);
+                int expectedHeight = Math.min(tileHeight, sizeY / scale);
+                int[] expectedChunks = new int[] {1, 1, chunkDepth, expectedHeight, expectedWidth};
+                assertArrayEquals(chunks[resolution], expectedChunks);
+
+                zpb.setResolutionLevel(resolutions - resolution - 1);
+                assertEquals(zpb.getTileSize().getWidth(), expectedWidth);
+                assertEquals(zpb.getTileSize().getHeight(), expectedHeight);
             }
+        }
+    }
+
+
+    static Stream<Arguments> getResolutions() {
+        return Stream.of(
+            Arguments.of(1, "0.4"),
+            Arguments.of(1, "0.5"),
+            Arguments.of(5, "0.4"),
+            Arguments.of(5, "0.5")
+        );
+    }
+
+    /** Test resolutions API. */
+    @ParameterizedTest
+    @MethodSource("getResolutions")
+    public void testResolutions(int resolutions, String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(
+            1, 3, 1, 1024, 2048, "uint8", version,
+            "--resolutions", String.valueOf(resolutions),
+            "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, 2048, 1024, 3, 2, 1, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            List<List<Integer>> expected = new ArrayList<List<Integer>>();
+            for (int resolution = 0; resolution < resolutions; resolution++) {
+                int scale = (int) Math.pow(2, resolution);
+                expected.add(Arrays.asList(new Integer[] {2048 / scale, 1024 / scale}));
+            }
+            assertEquals(expected, zpb.getResolutionDescriptions());
+
+            List<Map<String, String>> datasets = zpb.getDatasets();
+            assertEquals(datasets.size(), resolutions);
+            assertEquals(zpb.getResolutionLevels(), resolutions);
+            List<Map<String, Object>> transformations  = new ArrayList<Map<String, Object>>();;
+            for (int resolution = 0; resolution < resolutions; resolution++) {
+                transformations = new ArrayList<Map<String, Object>>();
+                Map<String, Object> transformation = new HashMap<String, Object>();
+                double scale = Math.pow(2, resolution);
+                transformation.put("type", "scale");
+                transformation.put("scale", Arrays.asList(
+                    new Double[] {1.0, 1.0, 1.0, scale, scale}));
+                transformations.add(transformation);
+                assertEquals(
+                    datasets.get(resolution).get("coordinateTransformations"), transformations);
+
+                zpb.setResolutionLevel(resolutions - resolution - 1);
+                assertEquals(zpb.getSizeT(), 1);
+                assertEquals(zpb.getSizeC(), 3);
+                assertEquals(zpb.getSizeZ(), 1);
+                assertEquals(zpb.getSizeY(), 1024 / (int) scale);
+                assertEquals(zpb.getSizeX(), 2048 / (int) scale);
+            }
+
+            assertThrows(IllegalArgumentException.class, () -> {
+                zpb.setResolutionLevel(resolutions);
+            });
+        }
+    }
+
+    /** Test checkBounds. */
+    @ParameterizedTest
+    @ValueSource(strings = {"0.4", "0.5"})
+    public void testCheckBounds(String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(1, 2, 3, 512, 2048, "uint8", "0.5", "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, 2048, 512, 3, 2, 1, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            zpb.checkBounds(0, 0, 0, 0, 0);
+            zpb.checkBounds(2047, 511, 2, 1, 0);
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(-1, 0, 0, 0, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(2048, 0, 0, 0, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, -1, 0, 0, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 512, 0, 0, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 0, -1, 0, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 0, 3, 0, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 0, 0, -1, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 0, -1, 2, 0);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 0, 0, 0, -1);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.checkBounds(0, 0, 0, 0, 1);
+            });
+        }
+    }
+
+    /** Test getTile with dimensions exceeding the image size. */
+    @ParameterizedTest
+    @ValueSource(strings = {"0.4", "0.5"})
+    public void testGetTileLargerThanImage(String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(1, 1, 1, 10, 10, "uint8", version, "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, 10, 10, 1, 1, 1, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            zpb.getTile(0, 0, 0, 0, 0, 10, 10);
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.getTile(0, 0, 0, 0, 0, 11, 10);
+            });
+            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.getTile(0, 0, 0, 0, 0, 10, 11);
+            });
+        }
+    }
+
+    /** Test getTile with dimensions exceeding the buffer constructor limits. */
+    @ParameterizedTest
+    @ValueSource(strings = {"0.4", "0.5"})
+    public void testGetTileExceedsMinMax(String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(1, 1, 1, 10, 10, "uint8", version, "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, 10, 10, 1, 1, 1, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 5, 5)) {
+            zpb.getTile(0, 0, 0, 0, 0, 5, 5);
+            assertThrows(IllegalArgumentException.class, () -> {
+                zpb.getTile(0, 0, 0, 0, 0, 6, 5);
+            });
+            assertThrows(IllegalArgumentException.class, () -> {
+                zpb.getTile(0, 0, 0, 0, 0, 5, 6);
+            });
         }
     }
 }
