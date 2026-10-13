@@ -191,7 +191,7 @@ public class ZarrPixelBufferTest {
 
     /** Write Zarr multiscales attributes. */
     public Path writeTestZarr(int sizeT, int sizeC, int sizeZ, int sizeY, int sizeX,
-        String pixelType, String ngffVersion, String... options) throws IOException {
+        String pixelType, SupportedVersions ngffVersion, String... options) throws IOException {
         Path output = tmpDir.resolve("output.zarr");
         writeTestZarr(output, sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, ngffVersion,
             options);
@@ -207,7 +207,7 @@ public class ZarrPixelBufferTest {
         int sizeY,
         int sizeX,
         String pixelType,
-        String ngffVersion,
+        SupportedVersions ngffVersion,
         String... options) throws IOException {
 
         Path input = fake(
@@ -217,7 +217,7 @@ public class ZarrPixelBufferTest {
                 "sizeY", Integer.toString(sizeY),
                 "sizeX", Integer.toString(sizeX),
                 "pixelType", pixelType);
-        assertBioFormats2Raw(input, path, ngffVersion, options);
+        assertBioFormats2Raw(input, path, ngffVersion.toString(), options);
     }
 
     private void assertPixels(
@@ -308,45 +308,45 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getDimensions() {
         return Stream.of(
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "0.4"),
-            Arguments.of(128, 64, 1, 3, 4, "uint8", "0.4"),
-            Arguments.of(128, 64, 2, 1, 4, "uint8", "0.4"),
-            Arguments.of(128, 64, 2, 3, 1, "uint8", "0.4"),
-            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.4"),
-            Arguments.of(128, 64, 1, 1, 4, "uint8", "0.4"),
-            Arguments.of(128, 64, 1, 3, 1, "uint8", "0.4"),
-            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "0.5"),
-            Arguments.of(128, 64, 1, 3, 4, "uint8", "0.5"),
-            Arguments.of(128, 64, 2, 1, 4, "uint8", "0.5"),
-            Arguments.of(128, 64, 2, 3, 1, "uint8", "0.5"),
-            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.5"),
-            Arguments.of(128, 64, 1, 1, 4, "uint8", "0.5"),
-            Arguments.of(128, 64, 1, 3, 1, "uint8", "0.5"),
-            Arguments.of(128, 64, 2, 1, 1, "uint8", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5")
+            Arguments.of(128, 64, 2, 3, 4, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 3, 4, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 1, 4, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 4, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 3, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 3, 4, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 1, 4, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 3, 1, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 4, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 3, 1, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 1, 1, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_05)
         );
     }
 
     static Stream<Arguments> getPixelTypes() {
         return Stream.of(
-            Arguments.of(128, 64, 1, 1, 1, "int8", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "int16", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "uint16", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "uint32", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "float", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.4"),
-            Arguments.of(128, 64, 1, 1, 1, "int8", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "int16", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "uint16", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "uint32", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "float", "0.5"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.5")
+            Arguments.of(128, 64, 1, 1, 1, "int8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "int16", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "uint16", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "uint32", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "float", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 1, 1, 1, "int8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "int16", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "uint16", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "uint32", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "float", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_05)
         );
     }
 
@@ -356,7 +356,7 @@ public class ZarrPixelBufferTest {
     @ParameterizedTest
     @MethodSource({"getDimensions", "getPixelTypes"})
     public void testPixels(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
-            String pixelType, String version)
+            String pixelType, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version);
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
@@ -372,7 +372,7 @@ public class ZarrPixelBufferTest {
     @ParameterizedTest
     @MethodSource("getDimensions")
     public void testPixelsCompactDimensions(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
-            String pixelType, String version)
+            String pixelType, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(
             sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--compact");
@@ -386,18 +386,18 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getDimensionOrders() {
         return Stream.of(
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZTC", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCZT", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCTZ", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTCZ", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTZC", "0.4"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", "0.5"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZTC", "0.5"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCZT", "0.5"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCTZ", "0.5"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTCZ", "0.5"),
-            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTZC", "0.5")
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZTC", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCZT", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCTZ", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTCZ", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTZC", SupportedVersions.NGFF_04),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZTC", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCZT", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYCTZ", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTCZ", SupportedVersions.NGFF_05),
+            Arguments.of(128, 64, 2, 3, 4, "uint8", "XYTZC", SupportedVersions.NGFF_05)
         );
     }
 
@@ -407,7 +407,7 @@ public class ZarrPixelBufferTest {
     @ParameterizedTest
     @MethodSource("getDimensionOrders")
     public void testPixelsDimensionOrder(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
-            String pixelType, String order, String version)
+            String pixelType, String order, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(
             sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--dimension-order", order);
@@ -421,27 +421,27 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getCompressions() {
         return Stream.of(
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "null"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "blosc"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "zlib"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4", "null"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4", "blosc"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4", "zlib"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.4", "null"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.4", "blosc"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.4", "zlib"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "null"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "blosc"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "gzip"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "zstd"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "null"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "blosc"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "gzip"),
-            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "zstd"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "null"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "blosc"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "gzip"),
-            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "zstd")
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_04, "null"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_04, "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_04, "zlib"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_04, "null"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_04, "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_04, "zlib"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_04, "null"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_04, "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_04, "zlib"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_05, "null"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_05, "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_05, "gzip"),
+            Arguments.of(128, 64, 1, 1, 1, "uint8", SupportedVersions.NGFF_05, "zstd"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_05, "null"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_05, "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_05, "gzip"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", SupportedVersions.NGFF_05, "zstd"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_05, "null"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_05, "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_05, "gzip"),
+            Arguments.of(128, 64, 1, 1, 1, "double", SupportedVersions.NGFF_05, "zstd")
         );
     }
 
@@ -451,7 +451,7 @@ public class ZarrPixelBufferTest {
     @ParameterizedTest
     @MethodSource("getCompressions")
     public void testPixelsCompression(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
-            String pixelType, String version, String compression)
+            String pixelType, SupportedVersions version, String compression)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(
             sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--compression", compression);
@@ -464,21 +464,21 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getChunks() {
         return Stream.of(
-            Arguments.of(1024, 1024, 1, "0.4"),
-            Arguments.of(1024, 1024, 1, "0.5"),
-            Arguments.of(512, 512, 4, "0.4"),
-            Arguments.of(512, 512, 4, "0.5"),
-            Arguments.of(256, 256, 8, "0.4"),
-            Arguments.of(256, 256, 8, "0.5"),
-            Arguments.of(512, 256, 8, "0.4"),
-            Arguments.of(512, 256, 8, "0.5")
+            Arguments.of(1024, 1024, 1, SupportedVersions.NGFF_04),
+            Arguments.of(1024, 1024, 1, SupportedVersions.NGFF_05),
+            Arguments.of(512, 512, 4, SupportedVersions.NGFF_04),
+            Arguments.of(512, 512, 4, SupportedVersions.NGFF_05),
+            Arguments.of(256, 256, 8, SupportedVersions.NGFF_04),
+            Arguments.of(256, 256, 8, SupportedVersions.NGFF_05),
+            Arguments.of(512, 256, 8, SupportedVersions.NGFF_04),
+            Arguments.of(512, 256, 8, SupportedVersions.NGFF_05)
         );
     }
 
     /** Test chunk and tile sizes. */
     @ParameterizedTest
     @MethodSource("getChunks")
-    public void testChunks(int tileWidth, int tileHeight, int chunkDepth, String version)
+    public void testChunks(int tileWidth, int tileHeight, int chunkDepth, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         int sizeX = 1024;
         int sizeY = 2048;
@@ -514,15 +514,15 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getShards() {
         return Stream.of(
-            Arguments.of(1024, 1024, 1, 1024, 1024, 1, "0.5"),
-            Arguments.of(1024, 1024, 1, 1024, 1024, 4, "0.5"),
-            Arguments.of(1024, 1024, 1, 1024, 1024, 8, "0.5"),
-            Arguments.of(512, 512, 4, 512, 512, 4, "0.5"),
-            Arguments.of(512, 512, 4, 512, 512, 8, "0.5"),
-            Arguments.of(512, 512, 4, 1024, 1024, 4, "0.5"),
-            Arguments.of(512, 512, 4, 1024, 1024, 8, "0.5"),
-            Arguments.of(256, 256, 8, 256, 256, 8, "0.5"),
-            Arguments.of(512, 256, 8, 1024, 1024, 8, "0.5")
+            Arguments.of(1024, 1024, 1, 1024, 1024, 1, SupportedVersions.NGFF_05),
+            Arguments.of(1024, 1024, 1, 1024, 1024, 4, SupportedVersions.NGFF_05),
+            Arguments.of(1024, 1024, 1, 1024, 1024, 8, SupportedVersions.NGFF_05),
+            Arguments.of(512, 512, 4, 512, 512, 4, SupportedVersions.NGFF_05),
+            Arguments.of(512, 512, 4, 512, 512, 8, SupportedVersions.NGFF_05),
+            Arguments.of(512, 512, 4, 1024, 1024, 4, SupportedVersions.NGFF_05),
+            Arguments.of(512, 512, 4, 1024, 1024, 8, SupportedVersions.NGFF_05),
+            Arguments.of(256, 256, 8, 256, 256, 8, SupportedVersions.NGFF_05),
+            Arguments.of(512, 256, 8, 1024, 1024, 8, SupportedVersions.NGFF_05)
         );
     }
 
@@ -530,7 +530,7 @@ public class ZarrPixelBufferTest {
     @ParameterizedTest
     @MethodSource("getShards")
     public void testShards(int tileWidth, int tileHeight, int chunkDepth, int shardWidth,
-            int shardHeight, int shardDepth, String version)
+            int shardHeight, int shardDepth, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         int sizeX = 1024;
         int sizeY = 2048;
@@ -567,17 +567,17 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getResolutions() {
         return Stream.of(
-            Arguments.of(1, "0.4"),
-            Arguments.of(1, "0.5"),
-            Arguments.of(5, "0.4"),
-            Arguments.of(5, "0.5")
+            Arguments.of(1, SupportedVersions.NGFF_04),
+            Arguments.of(1, SupportedVersions.NGFF_05),
+            Arguments.of(5, SupportedVersions.NGFF_04),
+            Arguments.of(5, SupportedVersions.NGFF_05)
         );
     }
 
     /** Test resolutions API. */
     @ParameterizedTest
     @MethodSource("getResolutions")
-    public void testResolutions(int resolutions, String version)
+    public void testResolutions(int resolutions, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(
             1, 3, 1, 1024, 2048, "uint8", version,
@@ -622,12 +622,19 @@ public class ZarrPixelBufferTest {
         }
     }
 
+    static Stream<Arguments> getSupportedVersions() {
+        return Stream.of(
+            Arguments.of(SupportedVersions.NGFF_04),
+            Arguments.of(SupportedVersions.NGFF_05)
+        );
+    }
+
     /** Test checkBounds. */
     @ParameterizedTest
-    @ValueSource(strings = {"0.4", "0.5"})
-    public void testCheckBounds(String version)
+    @MethodSource("getSupportedVersions")
+    public void testCheckBounds(SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
-        Path output = writeTestZarr(1, 2, 3, 512, 2048, "uint8", "0.5", "--no-tiles");
+        Path output = writeTestZarr(1, 2, 3, 512, 2048, "uint8", version, "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, 2048, 512, 3, 2, 1, "", null);
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
@@ -668,8 +675,8 @@ public class ZarrPixelBufferTest {
 
     /** Test getTile with dimensions exceeding the image size. */
     @ParameterizedTest
-    @ValueSource(strings = {"0.4", "0.5"})
-    public void testGetTileLargerThanImage(String version)
+    @MethodSource("getSupportedVersions")
+    public void testGetTileLargerThanImage(SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(1, 1, 1, 10, 10, "uint8", version, "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
@@ -698,8 +705,8 @@ public class ZarrPixelBufferTest {
 
     /** Test getTile with dimensions exceeding the buffer constructor limits. */
     @ParameterizedTest
-    @ValueSource(strings = {"0.4", "0.5"})
-    public void testGetTileExceedsMinMax(String version)
+    @MethodSource("getSupportedVersions")
+    public void testGetTileExceedsMinMax(SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(1, 1, 1, 10, 10, "uint8", version, "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
@@ -720,8 +727,8 @@ public class ZarrPixelBufferTest {
 
     /** Test getTile with dimensions exceeding the buffer constructor limits. */
     @ParameterizedTest
-    @ValueSource(strings = {"0.4", "0.5"})
-    public void testGetTileIntegerOverflow(String version)
+    @MethodSource("getSupportedVersions")
+    public void testGetTileIntegerOverflow(SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
         Path output = writeTestZarr(1, 1, 1, 50000, 50000, "uint16", version, "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
