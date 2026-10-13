@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import loci.common.DataTools;
 import loci.formats.FormatTools;
 import loci.formats.in.FakeReader;
 import ome.io.nio.DimensionsOutOfBoundsException;
@@ -230,12 +231,13 @@ public class ZarrPixelBufferTest {
         assertEquals(sizeX, zpb.getSizeX());
         int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
         int planeSize = zpb.getPlaneSize().intValue();
-        assertEquals(sizeX * sizeY * bytesPerPixel, planeSize);
+        assertEquals(DataTools.safeMultiply32(sizeX, sizeY, bytesPerPixel), planeSize);
         int stackSize = zpb.getStackSize().intValue();
-        assertEquals(sizeZ * sizeX * sizeY * bytesPerPixel, stackSize);
+        assertEquals(DataTools.safeMultiply32(sizeZ, sizeX, sizeY, bytesPerPixel), stackSize);
         int timepointSize = zpb.getTimepointSize().intValue();
-        assertEquals(sizeC * sizeZ * sizeX * sizeY * bytesPerPixel, timepointSize);
-        int totalSize = sizeT * sizeC * sizeZ * sizeX * sizeY * bytesPerPixel;
+        assertEquals(DataTools.safeMultiply32(sizeC, sizeZ, sizeX, sizeY, bytesPerPixel),
+            timepointSize);
+        int totalSize = DataTools.safeMultiply32(sizeT, sizeC, sizeZ, sizeX, sizeY, bytesPerPixel);
         assertEquals(totalSize, zpb.getTotalSize().intValue());
         assertEquals(sizeY * bytesPerPixel, zpb.getColSize().longValue());
         assertEquals(sizeX * bytesPerPixel, zpb.getRowSize().longValue());
