@@ -422,10 +422,24 @@ public class ZarrPixelBufferTest {
             Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "null"),
             Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "blosc"),
             Arguments.of(128, 64, 1, 1, 1, "uint8", "0.4", "zlib"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4", "null"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4", "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.4", "zlib"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.4", "null"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.4", "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.4", "zlib"),
             Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "null"),
             Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "blosc"),
             Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "gzip"),
-            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "zstd")
+            Arguments.of(128, 64, 1, 1, 1, "uint8", "0.5", "zstd"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "null"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "gzip"),
+            Arguments.of(128, 64, 1, 1, 1, "int32", "0.5", "zstd"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "null"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "blosc"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "gzip"),
+            Arguments.of(128, 64, 1, 1, 1, "double", "0.5", "zstd")
         );
     }
 
