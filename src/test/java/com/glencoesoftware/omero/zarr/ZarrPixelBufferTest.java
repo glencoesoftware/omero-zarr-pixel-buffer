@@ -672,14 +672,25 @@ public class ZarrPixelBufferTest {
         Path output = writeTestZarr(1, 1, 1, 10, 10, "uint8", version, "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, 10, 10, 1, 1, 1, "", null);
+        DimensionsOutOfBoundsException exception;
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
             zpb.getTile(0, 0, 0, 0, 0, 10, 10);
-            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+            exception = assertThrows(DimensionsOutOfBoundsException.class, () -> {
                 zpb.getTile(0, 0, 0, 0, 0, 11, 10);
             });
-            assertThrows(DimensionsOutOfBoundsException.class, () -> {
+            assertEquals(exception.getMessage(), "X '10' greater than sizeX '10' or < '0'.");
+            exception = assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.getTile(0, 0, 0, -1, 0, 2, 2);
+            });
+            assertEquals(exception.getMessage(), "X '-1' greater than sizeX '10' or < '0'.");
+            exception = assertThrows(DimensionsOutOfBoundsException.class, () -> {
                 zpb.getTile(0, 0, 0, 0, 0, 10, 11);
             });
+            assertEquals(exception.getMessage(), "Y '10' greater than sizeY '10' or < '0'.");
+            exception = assertThrows(DimensionsOutOfBoundsException.class, () -> {
+                zpb.getTile(0, 0, 0, 0, -1, 2, 2);
+            });
+            assertEquals(exception.getMessage(), "Y '-1' greater than sizeY '10' or < '0'.");
         }
     }
 
@@ -691,14 +702,35 @@ public class ZarrPixelBufferTest {
         Path output = writeTestZarr(1, 1, 1, 10, 10, "uint8", version, "--no-tiles");
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, 10, 10, 1, 1, 1, "", null);
+        IllegalArgumentException exception;
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 5, 5)) {
             zpb.getTile(0, 0, 0, 0, 0, 5, 5);
-            assertThrows(IllegalArgumentException.class, () -> {
+            exception = assertThrows(IllegalArgumentException.class, () -> {
                 zpb.getTile(0, 0, 0, 0, 0, 6, 5);
             });
-            assertThrows(IllegalArgumentException.class, () -> {
+            assertEquals(exception.getMessage(), "Requested shape [6, 5] > max plane size 5 * 5");
+            exception = assertThrows(IllegalArgumentException.class, () -> {
                 zpb.getTile(0, 0, 0, 0, 0, 5, 6);
             });
+            assertEquals(exception.getMessage(), "Requested shape [5, 6] > max plane size 5 * 5");
+        }
+    }
+
+    /** Test getTile with dimensions exceeding the buffer constructor limits. */
+    @ParameterizedTest
+    @ValueSource(strings = {"0.4", "0.5"})
+    public void testGetTileIntegerOverflow(String version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(1, 1, 1, 50000, 50000, "uint16", version, "--no-tiles");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, 50000, 50000, 1, 1, 1, "", null);
+        IllegalArgumentException exception;
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            exception = assertThrows(IllegalArgumentException.class, () -> {
+                zpb.getTile(0, 0, 0, 0, 0, 50000, 50000);
+            });
+            assertEquals(exception.getMessage(),
+                "Requested shape [50000, 50000] > max plane size 1024 * 1024");
         }
     }
 }
