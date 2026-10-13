@@ -88,10 +88,6 @@ public class ZarrPixelBufferTest {
             args.add("--ngff-version");
             args.add(ngffVersion);
         }
-        if (!Arrays.asList(additionalArgs).contains("--compression")) {
-            args.add("--compression");
-            args.add("blosc");
-        }
         for (String arg : additionalArgs) {
             args.add(arg);
         }
