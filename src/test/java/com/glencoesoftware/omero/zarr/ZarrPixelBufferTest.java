@@ -82,12 +82,13 @@ public class ZarrPixelBufferTest {
      *
      * @param additionalArgs CLI arguments as needed beyond "input output"
      */
-    void assertBioFormats2Raw(Path input, Path output, String ngffVersion, String... additionalArgs)
+    void assertBioFormats2Raw(
+            Path input, Path output, SupportedVersions ngffVersion, String... additionalArgs)
             throws IOException {
         List<String> args = new ArrayList<String>();
         if (ngffVersion != null) {
             args.add("--ngff-version");
-            args.add(ngffVersion);
+            args.add(ngffVersion.toString());
         }
         for (String arg : additionalArgs) {
             args.add(arg);
@@ -98,7 +99,7 @@ public class ZarrPixelBufferTest {
             Converter converter = new Converter();
             CommandLine cli = new CommandLine(converter);
             cli.execute(args.toArray(new String[]{}));
-            if (ngffVersion != null && ngffVersion.equals(SupportedVersions.NGFF_05.toString())) {
+            if (ngffVersion != null && ngffVersion.equals(SupportedVersions.NGFF_05)) {
                 assertTrue(Files.exists(output.resolve("zarr.json")));
             } else {
                 assertTrue(Files.exists(output.resolve(".zattrs")));
@@ -217,7 +218,7 @@ public class ZarrPixelBufferTest {
                 "sizeY", Integer.toString(sizeY),
                 "sizeX", Integer.toString(sizeX),
                 "pixelType", pixelType);
-        assertBioFormats2Raw(input, path, ngffVersion.toString(), options);
+        assertBioFormats2Raw(input, path, ngffVersion, options);
     }
 
     private void assertPixels(
