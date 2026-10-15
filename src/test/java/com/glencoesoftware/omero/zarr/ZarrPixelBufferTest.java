@@ -384,6 +384,23 @@ public class ZarrPixelBufferTest {
         }
     }
 
+    /**
+     * Test datasets with resolution prefix.
+     */
+    @ParameterizedTest
+    @MethodSource("getDimensions")
+    public void testPixelsResolutionPrefix(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, SupportedVersions version)
+            throws IOException, URISyntaxException, ZarrException {
+        Path output = writeTestZarr(
+            sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version,
+            "--scale-format-string", "%d/scale%d'");
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, sizeX, sizeY)) {
+            assertPixels(zpb, sizeX, sizeY, sizeZ, sizeC, sizeT, pixelType, "XYZCT");
+        }
+    }
 
     static Stream<Arguments> getDimensionOrders() {
         return Stream.of(
@@ -568,22 +585,32 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getResolutions() {
         return Stream.of(
-            Arguments.of(1, SupportedVersions.NGFF_04),
-            Arguments.of(1, SupportedVersions.NGFF_05),
-            Arguments.of(5, SupportedVersions.NGFF_04),
-            Arguments.of(5, SupportedVersions.NGFF_05)
+            Arguments.of(1, null, SupportedVersions.NGFF_04),
+            Arguments.of(1, "scale", SupportedVersions.NGFF_04),
+            Arguments.of(5, null, SupportedVersions.NGFF_04),
+            Arguments.of(5, "scale", SupportedVersions.NGFF_04),
+            Arguments.of(1, null, SupportedVersions.NGFF_05),
+            Arguments.of(1, "scale", SupportedVersions.NGFF_05),
+            Arguments.of(5, null, SupportedVersions.NGFF_05),
+            Arguments.of(5, "scale", SupportedVersions.NGFF_05)
         );
     }
 
     /** Test resolutions API. */
     @ParameterizedTest
     @MethodSource("getResolutions")
-    public void testResolutions(int resolutions, SupportedVersions version)
+    public void testResolutions(int resolutions, String resolutionPrefix, SupportedVersions version)
             throws IOException, URISyntaxException, ZarrException {
+        List<String> args = new ArrayList<String>();
+        args.add("--resolutions");
+        args.add(String.valueOf(resolutions));
+        args.add("--no-tiles");
+        if (resolutionPrefix != null) {
+            args.add("--scale-format-string");
+            args.add("%d/" + resolutionPrefix + "%d");
+        }
         Path output = writeTestZarr(
-            1, 3, 1, 1024, 2048, "uint8", version,
-            "--resolutions", String.valueOf(resolutions),
-            "--no-tiles");
+            1, 3, 1, 1024, 2048, "uint8", version, args.toArray(new String[]{}));
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, 2048, 1024, 3, 2, 1, "", null);
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
