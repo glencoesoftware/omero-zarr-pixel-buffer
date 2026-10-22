@@ -570,9 +570,9 @@ public class ZarrPixelBufferTest {
             assertEquals(chunks.length, resolutions);
             for (int resolution = 0; resolution < resolutions; resolution++) {
                 int scale = (int) Math.pow(2, resolution);
-                int expectedWidth = Math.min(shardWidth, sizeX / scale);
-                int expectedHeight = Math.min(shardHeight, sizeY / scale);
-                int[] expectedChunks = new int[] {1, 1, shardDepth, expectedHeight, expectedWidth};
+                int expectedWidth = Math.min(tileWidth, sizeX / scale);
+                int expectedHeight = Math.min(tileHeight, sizeY / scale);
+                int[] expectedChunks = new int[] {1, 1, chunkDepth, expectedHeight, expectedWidth};
                 assertArrayEquals(chunks[resolution], expectedChunks);
 
                 zpb.setResolutionLevel(resolutions - resolution - 1);
