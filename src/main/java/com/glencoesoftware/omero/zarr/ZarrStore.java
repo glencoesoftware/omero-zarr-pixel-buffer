@@ -29,6 +29,8 @@ import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.Store;
 import dev.zarr.zarrjava.store.StoreHandle;
 import dev.zarr.zarrjava.v2.Endianness;
+import dev.zarr.zarrjava.v3.codec.Codec;
+import dev.zarr.zarrjava.v3.codec.core.ShardingIndexedCodec;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -38,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
@@ -336,12 +339,22 @@ public class ZarrStore {
         if (array instanceof dev.zarr.zarrjava.v3.Array) {
             // TODO: Implement!!
             res.put("littleEndian", true);
+            dev.zarr.zarrjava.v3.ArrayMetadata m3 = (dev.zarr.zarrjava.v3.ArrayMetadata) m;
+            Optional<Codec> shardingCodec = m3.getShardingIndexedCodec(m3.codecs);
+            int[] chunkShape = m3.chunkShape();
+            while (shardingCodec.isPresent()) {
+                ShardingIndexedCodec.Configuration shardingConfig =
+                    ((ShardingIndexedCodec) shardingCodec.get()).configuration;
+                chunkShape = shardingConfig.chunkShape;
+                shardingCodec = m3.getShardingIndexedCodec(shardingConfig.codecs);
+            }
+            res.put("chunkShape", chunkShape);
         } else {
             dev.zarr.zarrjava.v2.ArrayMetadata m2 = (dev.zarr.zarrjava.v2.ArrayMetadata) m;
             res.put("littleEndian", m2.endianness.equals(Endianness.LITTLE));
+            res.put("chunkShape", m2.chunkShape());
         }
         res.put("shape", m.shape);
-        res.put("chunkShape", m.chunkShape());
         res.put("dataType", m.dataType());
         return res;
     }
