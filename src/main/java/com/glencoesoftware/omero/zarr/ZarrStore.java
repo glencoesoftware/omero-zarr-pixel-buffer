@@ -306,7 +306,7 @@ public class ZarrStore {
      * Retrieves metadata from a Zarr array at the specified path.
      *
      * @param path the relative path to the array within the store
-     * @return a map containing metadata including shape, chunkShape, dataType, and littleEndian
+     * @return a map containing metadata including shape, chunkShape and dataType
      * @throws RuntimeException if the array cannot be accessed or metadata cannot be retrieved
      */
     public Map<String, Object> metadataFromArray(String path) {
@@ -327,7 +327,6 @@ public class ZarrStore {
      * <li>shape - The dimensions of the array</li>
      * <li>chunkShape - The chunk dimensions</li>
      * <li>dataType - The data type of array elements</li>
-     * <li>littleEndian - Byte order (Todo: currently always true for v3 arrays)</li>
      * </ul>
      *
      * @param array the Array object to extract metadata from
@@ -337,8 +336,6 @@ public class ZarrStore {
         Map<String, Object> res = new HashMap<>();
         ArrayMetadata m = array.metadata();
         if (array instanceof dev.zarr.zarrjava.v3.Array) {
-            // TODO: Implement!!
-            res.put("littleEndian", true);
             dev.zarr.zarrjava.v3.ArrayMetadata m3 = (dev.zarr.zarrjava.v3.ArrayMetadata) m;
             Optional<Codec> shardingCodec = m3.getShardingIndexedCodec(m3.codecs);
             int[] chunkShape = m3.chunkShape();
@@ -351,7 +348,6 @@ public class ZarrStore {
             res.put("chunkShape", chunkShape);
         } else {
             dev.zarr.zarrjava.v2.ArrayMetadata m2 = (dev.zarr.zarrjava.v2.ArrayMetadata) m;
-            res.put("littleEndian", m2.endianness.equals(Endianness.LITTLE));
             res.put("chunkShape", m2.chunkShape());
         }
         res.put("shape", m.shape);
