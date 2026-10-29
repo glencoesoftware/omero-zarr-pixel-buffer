@@ -75,12 +75,6 @@ public class ZarrStore {
     /** The underlying store handle for accessing Zarr data. */
     StoreHandle store;
 
-    /** Store interface; just for debug output. */
-    Class<? extends Store> iface;
-
-    /** Zarr version; just for debug output. */
-    String zarrVersion = "N/A";
-
     /** The full path to the Zarr store including the .zarr extension. */
     String path;
 
@@ -125,7 +119,6 @@ public class ZarrStore {
             String rest = path.substring(sep + 1);
             this.name = path.substring(pathToZarr.lastIndexOf(File.separator) + 1);
             store = new FilesystemStore(storePath).resolve(rest);
-            iface = FilesystemStore.class;
         } else if (path.startsWith("http")) {
             int sep = path.lastIndexOf("/");
             String storePath = path.substring(0, sep);
@@ -137,7 +130,6 @@ public class ZarrStore {
             }
 
             store = new HttpStore(storePath).resolve(rest);
-            iface = HttpStore.class;
         } else if (path.startsWith("s3")) {
             String[] tmp = path.replaceFirst("s3://", "").split("/");
             final String host = tmp[0];
@@ -194,16 +186,9 @@ public class ZarrStore {
 
             S3Client client = clientBuilder.build();
             store = new S3Store(client, bucket, null).resolve(rest);
-            iface = S3Store.class;
         } else {
             throw new IllegalArgumentException("Unsupported URI scheme: "
                     + path.subSequence(0, path.indexOf("://") + 3));
-        }
-        Group group = Group.open(store);
-        if (group instanceof dev.zarr.zarrjava.v2.Group) {
-            zarrVersion = "2";
-        } else if (group instanceof dev.zarr.zarrjava.v3.Group) {
-            zarrVersion = "3";
         }
     }
 
@@ -453,8 +438,7 @@ public class ZarrStore {
      */
     @Override
     public String toString() {
-        return "ZarrStore {" + "path = " + path + " , name = " + name
-            + " , interface = " + iface.getName() + " , zarrVersion = " + zarrVersion + "}";
+        return "ZarrStore {" + "path = " + path + " , name = " + name + "}";
     }
 
     /**
