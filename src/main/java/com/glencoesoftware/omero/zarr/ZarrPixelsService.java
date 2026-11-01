@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.core.Array;
+import dev.zarr.zarrjava.core.Group;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -69,10 +70,10 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
     /** Copy of private IQuery also provided to ome.io.nio.PixelsService. */
     private final IQuery iQuery;
 
-    /** Root path vs. metadata cache. */
-    private final AsyncLoadingCache<ZarrPath, Map<String, Object>> zarrMetadataCache;
+    /** Root path vs. Group cache. */
+    private final AsyncLoadingCache<ZarrPath, Group> zarrGroupCache;
 
-    /** Array path vs. ZarrArray cache */
+    /** Array path vs. Array cache */
     private final AsyncLoadingCache<ZarrPath, Array> zarrArrayCache;
 
     /**
@@ -92,23 +93,29 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
         this.maxPlaneWidth = maxPlaneWidth;
         this.maxPlaneHeight = maxPlaneHeight;
         this.iQuery = iQuery;
-        zarrMetadataCache = Caffeine.newBuilder().maximumSize(this.zarrCacheSize)
-            .buildAsync(ZarrPixelsService::getZarrMetadata);
+        zarrGroupCache = Caffeine.newBuilder().maximumSize(this.zarrCacheSize)
+            .buildAsync(ZarrPixelsService::getZarrGroup);
         zarrArrayCache = Caffeine.newBuilder().maximumSize(this.zarrCacheSize)
             .buildAsync(ZarrPixelsService::getZarrArray);
     }
 
     /**
-     * Retrieves Zarr metadata from a given path.
+     * Opens a Zarr group at a given path.
+     * To minimize the number of calls especially for Zarr groups stored
+     * remotely, this first tries to open a group compliant with version 3
+     * of the Zarr specification and falls back to version 2 of the Zarr
+     * specification.
      *
-     * @param zp path to get Zarr metadata from
-     * @return See above.
-     * @throws URISyntaxException       If something isn't right.
-     * @throws IllegalArgumentException If something isn't right.
+     * @param zp          Location of a multiscale Zarr group
+     * @return            Group including the metadata
      */
-    public static Map<String, Object> getZarrMetadata(ZarrPath zp)
+    public static dev.zarr.zarrjava.core.Group getZarrGroup(ZarrPath zp)
         throws IOException, IllegalArgumentException, URISyntaxException {
-        return zp.store.metadata(zp.path);
+        try {
+            return dev.zarr.zarrjava.v3.Group.open(zp.store.store);
+        } catch (IOException e) {
+            return dev.zarr.zarrjava.v2.Group.open(zp.store.store);
+        }
     }
 
     /**
@@ -120,8 +127,12 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
      * @throws IllegalArgumentException If something isn't right.
      */
     public static Array getZarrArray(ZarrPath zp)
-        throws IOException, IllegalArgumentException, URISyntaxException {
-        return zp.store.getArray(zp.path);
+        throws IOException, IllegalArgumentException, URISyntaxException, ZarrException {
+        try {
+            return dev.zarr.zarrjava.v3.Array.open(zp.store.store.resolve(zp.path.split("/")));
+        } catch (IOException e) {
+            return dev.zarr.zarrjava.v2.Array.open(zp.store.store.resolve(zp.path.split("/")));
+        }
     }
 
     /**
@@ -257,7 +268,7 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
         }
         ZarrStore store = new ZarrStore(root);
         log.info("Using ZarrStore: " + store);
-        return new ZarrPixelBuffer(pixels, store, maxPlaneWidth, maxPlaneHeight, zarrMetadataCache,
+        return new ZarrPixelBuffer(pixels, store, maxPlaneWidth, maxPlaneHeight, zarrGroupCache,
             zarrArrayCache);
     }
 
@@ -286,7 +297,7 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
                 ZarrStore store = new ZarrStore(uri);
                 log.info("Using ZarrStore: " + store);
                 ZarrPixelBuffer v = new ZarrPixelBuffer(pixels, store, maxPlaneWidth,
-                    maxPlaneHeight, zarrMetadataCache, zarrArrayCache);
+                    maxPlaneHeight, zarrGroupCache, zarrArrayCache);
                 log.info("Using OME-NGFF pixel buffer");
                 return v;
             } catch (Exception e) {

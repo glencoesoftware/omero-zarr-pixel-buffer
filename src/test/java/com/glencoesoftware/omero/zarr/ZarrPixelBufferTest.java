@@ -71,9 +71,9 @@ public class ZarrPixelBufferTest {
 
     /** Constructor. */
     public ZarrPixelBuffer createPixelBuffer(Pixels pixels, ZarrStore store, Integer maxPlaneWidth,
-        Integer maxPlaneHeight) throws IOException {
+        Integer maxPlaneHeight) throws IOException, ZarrException {
         return new ZarrPixelBuffer(pixels, store, maxPlaneWidth, maxPlaneHeight,
-            Caffeine.newBuilder().maximumSize(0).buildAsync(ZarrPixelsService::getZarrMetadata),
+            Caffeine.newBuilder().maximumSize(0).buildAsync(ZarrPixelsService::getZarrGroup),
             Caffeine.newBuilder().maximumSize(0).buildAsync(ZarrPixelsService::getZarrArray));
     }
 

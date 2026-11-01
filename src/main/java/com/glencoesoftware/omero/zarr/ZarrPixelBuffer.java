@@ -20,8 +20,11 @@ package com.glencoesoftware.omero.zarr;
 
 import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.core.Array;
+import dev.zarr.zarrjava.core.Attributes;
 import dev.zarr.zarrjava.core.DataType;
+import dev.zarr.zarrjava.core.Group;
 import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
@@ -82,7 +85,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
     private final AsyncLoadingCache<List<Integer>, byte[]> tileCache;
 
     /** Root path vs. metadata cache. */
-    private final AsyncLoadingCache<ZarrPath, Map<String, Object>> zarrMetadataCache;
+    private final AsyncLoadingCache<ZarrPath, Group> zarrGroupCache;
 
     /** Array path vs. ZarrArray cache. */
     private final AsyncLoadingCache<ZarrPath, Array> zarrArrayCache;
@@ -105,21 +108,23 @@ public class ZarrPixelBuffer implements PixelBuffer {
      * @param root   The root of this buffer
      */
     public ZarrPixelBuffer(Pixels pixels, ZarrStore root, Integer maxPlaneWidth,
-        Integer maxPlaneHeight, AsyncLoadingCache<ZarrPath, Map<String, Object>> zarrMetadataCache,
-        AsyncLoadingCache<ZarrPath, Array> zarrArrayCache) throws IOException {
+        Integer maxPlaneHeight, AsyncLoadingCache<ZarrPath, Group> zarrGroupCache,
+        AsyncLoadingCache<ZarrPath, Array> zarrArrayCache) throws IOException, ZarrException {
         log.info("Creating ZarrPixelBuffer");
         this.pixels = pixels;
         this.root = root;
-        this.zarrMetadataCache = zarrMetadataCache;
+        this.zarrGroupCache = zarrGroupCache;
         this.zarrArrayCache = zarrArrayCache;
         try {
-            Map<String, Object> tmp = this.zarrMetadataCache.get(new ZarrPath(root, "")).get();
-            if (tmp.containsKey("ome")) {
-                Object omeAttributes = tmp.get("ome");
-                rootGroupAttributes = Utils.castToStringObjectMap(omeAttributes);
+            Group zarrGroup = this.zarrGroupCache.get(new ZarrPath(root, "")).get();
+            Attributes groupAttributes = zarrGroup.metadata().attributes();
+            if (zarrGroup instanceof dev.zarr.zarrjava.v2.Group) {
+                rootGroupAttributes = groupAttributes;
             } else {
-                rootGroupAttributes = tmp;
-                log.warn("Attributes should be under 'ome' key!");
+                if (!groupAttributes.containsKey("ome")) {
+                    throw new IllegalArgumentException("Missing 'ome'!");
+                }
+                rootGroupAttributes = Utils.castToStringObjectMap(groupAttributes.get("ome"));
             }
         } catch (ExecutionException | InterruptedException e) {
             throw new IOException(e);
