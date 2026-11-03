@@ -96,9 +96,7 @@ public class ZarrStore {
      * <p>For S3 URIs, authentication parameters can be provided as query parameters: </p>
      * <ul>
      * <li>anonymous - Use anonymous access</li>
-     * <li>accessKeyId and secretAccessKey - Use basic credentials</li>
      * <li>profile - Use profile credentials</li>
-     * <li>region - Specify AWS region (defaults to US_EAST_1)</li>
      * </ul>
      * Example: s3://host/bucket/path/data.zarr?anonymous=true
      *
