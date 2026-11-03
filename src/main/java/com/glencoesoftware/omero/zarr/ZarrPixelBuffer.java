@@ -33,7 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import loci.formats.FormatTools;
 import ome.io.nio.DimensionsOutOfBoundsException;
@@ -96,6 +95,9 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     /** Maps axes to their corresponding indexes. */
     private Map<Axis, Integer> axesOrder;
+
+    /** Zarr dataset paths for the different resolutions (index == resolution).  */
+    private String[] resolutionPaths;
 
     /**
      * Default constructor.
@@ -257,9 +259,12 @@ public class ZarrPixelBuffer implements PixelBuffer {
      * @see #getMultiscalesMetadata()
      */
     public List<Map<String, String>> getDatasets() {
-        List<Map<String, Object>> multiscales = getMultiscalesMetadata();
-
-        Object datasets = multiscales.get(0).get("datasets");
+        List<Map<String, Object>> tmp = getMultiscalesMetadata();
+        if (tmp.isEmpty()) {
+            throw new IllegalArgumentException("No multiscales metadata found");
+        }
+        Map<String, Object> multiscales = tmp.get(0);
+        Object datasets = multiscales.get("datasets");
         return Utils.castToListOfStringMap(datasets);
     }
 
@@ -838,7 +843,25 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     @Override
     public int getResolutionLevels() {
-        return getDatasets().size();
+        return getResolutionPaths().length;
+    }
+
+    /**
+     * Returns the paths to each resolution level in the Zarr array.
+     *
+     * @return array of resolution paths
+     */
+    public String[] getResolutionPaths() {
+        if (resolutionPaths != null) {
+            return resolutionPaths;
+        }
+
+        List<Map<String, String>> datasets = getDatasets();
+        resolutionPaths = new String[datasets.size()];
+        for (int i = 0; i < datasets.size(); i++) {
+            resolutionPaths[i] = datasets.get(i).get("path").toString();
+        }
+        return resolutionPaths;
     }
 
     @Override
@@ -860,13 +883,14 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
         Map<Integer, Integer> tmpMap = new HashMap<>();
         try {
+            String resPath = getResolutionPaths()[this.resolutionLevel];
             array = zarrArrayCache.get(new ZarrPath(root,
-                Integer.toString(this.resolutionLevel))).get();
+                resPath)).get();
             arrayMetadata = zarrMetadataCache.get(new ZarrPath(root,
-                Integer.toString(this.resolutionLevel))).get();
+                resPath)).get();
 
             Map<String, Object> fullResolutionArrayMetadata = zarrMetadataCache
-                .get(new ZarrPath(root, "0")).get();
+                .get(new ZarrPath(root, getResolutionPaths()[0])).get();
 
             if (axesOrder.containsKey(Axis.Z)) {
                 // map each Z index in the full resolution array
