@@ -38,11 +38,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.awscore.util.AwsHostNameUtils;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -167,7 +170,7 @@ public class ZarrStore {
                     .httpClientBuilder(UrlConnectionHttpClient.builder()
                             .socketTimeout(Duration.ofMinutes(5)));
             clientBuilder.endpointOverride(endpoint);
-            clientBuilder.region(Region.US_EAST_1); // Default region required even for non-AWS
+            clientBuilder.region(getRegionFromUri(endpoint));
 
             S3Configuration s3Config = S3Configuration.builder().pathStyleAccessEnabled(true)
                 .build();
@@ -185,9 +188,6 @@ public class ZarrStore {
                         .addCredentialsProvider(
                                 InstanceProfileCredentialsProvider.create()).build());
             }
-            if (params.containsKey("region")) {
-                clientBuilder.region(Region.of(params.get("region")));
-            }
 
             S3Client client = clientBuilder.build();
             store = new S3Store(client, bucket, null).resolve(rest);
@@ -202,6 +202,20 @@ public class ZarrStore {
         } else if (group instanceof dev.zarr.zarrjava.v3.Group) {
             zarrVersion = "3";
         }
+    }
+
+    /**
+     * Retrieves the region from a given URI.
+     *
+     * @param uri The URI to handle
+     * @return The region
+     */
+    public static Region getRegionFromUri(URI uri) {
+        Optional<Region> region = AwsHostNameUtils.parseSigningRegion(uri.getHost(), null);
+        if (region.isPresent()) {
+            return region.get();
+        }
+        return Region.US_EAST_1;
     }
 
     /**
