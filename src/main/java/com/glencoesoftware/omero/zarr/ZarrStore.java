@@ -204,9 +204,10 @@ public class ZarrStore {
     }
 
     /**
-     * Retrieves the region from a given URI.
+     * Retrieves the AWS region from a given URI.  Defaults to
+     * {@link Region.US_EAST_1} if a region cannot be detected.
      *
-     * @param uri The URI to handle
+     * @param uri URI to retrieve a region for
      * @return The region
      */
     public static Region getRegionFromUri(URI uri) {
