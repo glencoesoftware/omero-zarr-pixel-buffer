@@ -46,6 +46,7 @@ import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.awscore.util.AwsHostNameUtils;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -90,9 +91,7 @@ public class ZarrStore {
      * <p>For S3 URIs, authentication parameters can be provided as query parameters: </p>
      * <ul>
      * <li>anonymous - Use anonymous access</li>
-     * <li>accessKeyId and secretAccessKey - Use basic credentials</li>
      * <li>profile - Use profile credentials</li>
-     * <li>region - Specify AWS region (defaults to US_EAST_1)</li>
      * </ul>
      * Example: s3://host/bucket/path/data.zarr?anonymous=true
      *
@@ -162,7 +161,7 @@ public class ZarrStore {
                     .httpClientBuilder(UrlConnectionHttpClient.builder()
                             .socketTimeout(Duration.ofMinutes(5)));
             clientBuilder.endpointOverride(endpoint);
-            clientBuilder.region(Region.US_EAST_1); // Default region required even for non-AWS
+            clientBuilder.region(getRegionFromUri(endpoint));
 
             S3Configuration s3Config = S3Configuration.builder().pathStyleAccessEnabled(true)
                 .build();
@@ -180,9 +179,6 @@ public class ZarrStore {
                         .addCredentialsProvider(
                                 InstanceProfileCredentialsProvider.create()).build());
             }
-            if (params.containsKey("region")) {
-                clientBuilder.region(Region.of(params.get("region")));
-            }
 
             S3Client client = clientBuilder.build();
             store = new S3Store(client, bucket, null).resolve(rest);
@@ -190,6 +186,21 @@ public class ZarrStore {
             throw new IllegalArgumentException("Unsupported URI scheme: "
                     + path.subSequence(0, path.indexOf("://") + 3));
         }
+    }
+
+    /**
+     * Retrieves the AWS region from a given URI.  Defaults to
+     * {@link Region.US_EAST_1} if a region cannot be detected.
+     *
+     * @param uri URI to retrieve a region for
+     * @return The region
+     */
+    public static Region getRegionFromUri(URI uri) {
+        Optional<Region> region = AwsHostNameUtils.parseSigningRegion(uri.getHost(), null);
+        if (region.isPresent()) {
+            return region.get();
+        }
+        return Region.US_EAST_1;
     }
 
     /**

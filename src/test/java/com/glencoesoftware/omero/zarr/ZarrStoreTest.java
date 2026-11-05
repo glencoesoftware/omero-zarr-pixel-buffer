@@ -3,7 +3,10 @@ package com.glencoesoftware.omero.zarr;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.regions.Region;
 
 /** Unit test for ZarrStore. */
 public class ZarrStoreTest {
@@ -100,5 +103,33 @@ public class ZarrStoreTest {
                 "/my/test/path.zarr?anonymous=true",
                 ZarrStore.normalizePath(
                         "/my/test/path.zarr?anonymous=true"));
+    }
+
+    @Test
+    public void testRegionFromUriUsEast1() throws URISyntaxException {
+        assertEquals(
+                Region.US_EAST_1,
+                ZarrStore.getRegionFromUri(new URI("https://s3.us-east-1.amazonaws.com/")));
+    }
+
+    @Test
+    public void testRegionFromUriUsWest2() throws URISyntaxException {
+        assertEquals(
+                Region.US_WEST_2,
+                ZarrStore.getRegionFromUri(new URI("https://s3.us-west-2.amazonaws.com/")));
+    }
+
+    @Test
+    public void testRegionFromUriGCS() throws URISyntaxException {
+        assertEquals(
+                Region.US_EAST_1,
+                ZarrStore.getRegionFromUri(new URI("https://storage.googleapis.com")));
+    }
+
+    @Test
+    public void testRegionFromUriLivingObjects() throws URISyntaxException {
+        assertEquals(
+                Region.US_EAST_1,
+                ZarrStore.getRegionFromUri(new URI("https://livingobjects.ebi.ac.uk/")));
     }
 }
