@@ -73,7 +73,6 @@ public class ZarrPixelBuffer implements PixelBuffer {
     /** Zarr array corresponding to the current resolution level. */
     private Array array;
 
-    private Map<String, Object> arrayMetadata;
     /**
      * Mapping of Z plane indexes in full resolution to Z plane indexes in current resolution.
      */
@@ -164,7 +163,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
      * @return See above.
      */
     public int getPixelsType() {
-        ucar.ma2.DataType dataType = ((DataType) arrayMetadata.get("dataType")).getMA2DataType();
+        ucar.ma2.DataType dataType = array.metadata().dataType().getMA2DataType();
         switch (dataType) {
             case UBYTE:
                 return FormatTools.UINT8;
@@ -791,14 +790,12 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     @Override
     public int getSizeX() {
-        long[] shape = (long[]) arrayMetadata.get("shape");
-        return (int) shape[axesOrder.get(Axis.X)];
+        return (int) array.metadata().shape[axesOrder.get(Axis.X)];
     }
 
     @Override
     public int getSizeY() {
-        long[] shape = (long[]) arrayMetadata.get("shape");
-        return (int) shape[axesOrder.get(Axis.Y)];
+        return (int) array.metadata().shape[axesOrder.get(Axis.Y)];
     }
 
     @Override
@@ -817,8 +814,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
      */
     private int getTrueSizeZ() {
         if (axesOrder.containsKey(Axis.Z)) {
-            long[] shape = (long[]) arrayMetadata.get("shape");
-            return (int) shape[axesOrder.get(Axis.Z)];
+            return (int) array.metadata().shape[axesOrder.get(Axis.Z)];
         }
         return 1;
     }
@@ -826,8 +822,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
     @Override
     public int getSizeC() {
         if (axesOrder.containsKey(Axis.C)) {
-            long[] shape = (long[]) arrayMetadata.get("shape");
-            return (int) shape[axesOrder.get(Axis.C)];
+            return (int) array.metadata().shape[axesOrder.get(Axis.C)];
         }
         return 1;
     }
@@ -835,8 +830,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
     @Override
     public int getSizeT() {
         if (axesOrder.containsKey(Axis.T)) {
-            long[] shape = (long[]) arrayMetadata.get("shape");
-            return (int) shape[axesOrder.get(Axis.T)];
+            return (int) array.metadata().shape[axesOrder.get(Axis.T)];
         }
         return 1;
     }
@@ -886,20 +880,15 @@ public class ZarrPixelBuffer implements PixelBuffer {
             String resPath = getResolutionPaths()[this.resolutionLevel];
             array = zarrArrayCache.get(new ZarrPath(root,
                 resPath)).get();
-            arrayMetadata = zarrMetadataCache.get(new ZarrPath(root,
-                resPath)).get();
-
-            Map<String, Object> fullResolutionArrayMetadata = zarrMetadataCache
-                .get(new ZarrPath(root, getResolutionPaths()[0])).get();
+            Array fullResolutionArray = zarrArrayCache.get(
+                new ZarrPath(root, getResolutionPaths()[0])).get();
 
             if (axesOrder.containsKey(Axis.Z)) {
                 // map each Z index in the full resolution array
                 // to a Z index in the subresolution array
                 // if no Z downsampling, this is just an identity map
-                long[] tmp = (long[]) fullResolutionArrayMetadata.get("shape");
-                int fullResZ = (int) tmp[axesOrder.get(Axis.Z)];
-                tmp = (long[]) arrayMetadata.get("shape");
-                int arrayZ = (int) tmp[axesOrder.get(Axis.Z)];
+                int fullResZ = (int) fullResolutionArray.metadata().shape[axesOrder.get(Axis.Z)];
+                int arrayZ = (int) array.metadata().shape[axesOrder.get(Axis.Z)];
                 for (int z = 0; z < fullResZ; z++) {
                     tmpMap.put(z, Math.round(z * arrayZ / fullResZ));
                 }
