@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.core.Array;
 import dev.zarr.zarrjava.core.Group;
+import dev.zarr.zarrjava.store.StoreHandle;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -128,10 +129,11 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
      */
     public static Array getZarrArray(ZarrPath zp)
         throws IOException, IllegalArgumentException, URISyntaxException, ZarrException {
+        StoreHandle handle = zp.store.store.resolve(zp.path.split("/"));
         try {
-            return dev.zarr.zarrjava.v3.Array.open(zp.store.store.resolve(zp.path.split("/")));
+            return dev.zarr.zarrjava.v3.Array.open(handle);
         } catch (IOException e) {
-            return dev.zarr.zarrjava.v2.Array.open(zp.store.store.resolve(zp.path.split("/")));
+            return dev.zarr.zarrjava.v2.Array.open(handle);
         }
     }
 
