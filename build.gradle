@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.glencoesoftware.omero'
-version = '0.7.3-SNAPSHOT'
+version = '0.8.0-SNAPSHOT'
 
 compileJava {
     options.release = 11
@@ -16,7 +16,7 @@ repositories {
     mavenCentral()
     maven {
         name = 'Unidata'
-        url = 'https://artifacts.unidata.ucar.edu/repository/unidata-releases/'
+        url = 'https://artifacts.glencoesoftware.com/artifactory/unidata-releases'
     }
     maven {
         url = 'https://artifacts.glencoesoftware.com/artifactory/ome.releases'
