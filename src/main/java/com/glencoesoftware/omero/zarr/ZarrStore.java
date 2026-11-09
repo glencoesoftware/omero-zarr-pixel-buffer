@@ -66,13 +66,13 @@ public class ZarrStore {
     private static final String PATH_WITH_QUERY_REGEX = ".*" + QUERY_REGEX;
 
     /** The underlying store handle for accessing Zarr data. */
-    StoreHandle store;
+    private StoreHandle store;
 
     /** The full path to the Zarr store including the .zarr extension. */
-    String path;
+    private String path;
 
     /** The name of the Zarr (typically the .zarr directory name). */
-    String name;
+    private String name;
 
     /**
      * Constructs a ZarrLocation from the given path.
