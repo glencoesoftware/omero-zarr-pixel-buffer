@@ -101,7 +101,7 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
     }
 
     /**
-     * Opens a Zarr group at a given path.
+     * Opens a Zarr group at the root path.
      * To minimize the number of calls especially for Zarr groups stored
      * remotely, this first tries to open a group compliant with version 3
      * of the Zarr specification and falls back to version 2 of the Zarr
@@ -112,10 +112,11 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
      */
     public static dev.zarr.zarrjava.core.Group getZarrGroup(ZarrPath zp)
         throws IOException, IllegalArgumentException, URISyntaxException {
+        StoreHandle handle = zp.store.store;
         try {
-            return dev.zarr.zarrjava.v3.Group.open(zp.store.store);
+            return dev.zarr.zarrjava.v3.Group.open(handle);
         } catch (IOException e) {
-            return dev.zarr.zarrjava.v2.Group.open(zp.store.store);
+            return dev.zarr.zarrjava.v2.Group.open(handle);
         }
     }
 
