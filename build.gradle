@@ -16,7 +16,7 @@ repositories {
     mavenCentral()
     maven {
         name = 'Unidata'
-        url = 'https://artifacts.unidata.ucar.edu/repository/unidata-releases/'
+        url = 'https://artifacts.glencoesoftware.com/artifactory/unidata-releases'
     }
     maven {
         url = 'https://artifacts.glencoesoftware.com/artifactory/ome.releases'
