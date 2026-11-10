@@ -25,6 +25,8 @@ import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.StoreHandle;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -91,10 +93,7 @@ public class ZarrStore {
             throws URISyntaxException, IllegalArgumentException, ZarrException {
         this.path = normalizePath(orgPath);
         if (!path.contains("://")) {
-            int sep = path.lastIndexOf("/");
-            String storePath = path.substring(0, sep);
-            String rest = path.substring(sep + 1);
-            store = new FilesystemStore(storePath).resolve(rest);
+            store = new StoreHandle(new FilesystemStore(path));
         } else if (path.startsWith("http")) {
             int sep = path.lastIndexOf("/");
             String storePath = path.substring(0, sep);

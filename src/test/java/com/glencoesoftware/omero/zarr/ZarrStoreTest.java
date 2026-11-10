@@ -143,7 +143,7 @@ public class ZarrStoreTest {
         ZarrStore store = new ZarrStore("/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
         assertTrue(handle.store instanceof FilesystemStore);
-        assertArrayEquals(new String[] { "0" }, handle.keys);
+        assertArrayEquals(new String[] { }, handle.keys);
     }
 
     @Test
