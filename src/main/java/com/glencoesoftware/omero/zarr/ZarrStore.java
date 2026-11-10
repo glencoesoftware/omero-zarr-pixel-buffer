@@ -24,7 +24,6 @@ import dev.zarr.zarrjava.store.HttpStore;
 import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.StoreHandle;
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -92,10 +91,9 @@ public class ZarrStore {
      * @throws IllegalArgumentException if the path does not contain .zarr or uses an unsupported
      *                                  URI scheme
      * @throws ZarrException            if there was a problem reading the zarr
-     * @throws IOException              if there was a problem reading the zarr
      */
-    public ZarrStore(final String orgPath) throws URISyntaxException, IllegalArgumentException,
-        IOException, ZarrException {
+    public ZarrStore(final String orgPath)
+            throws URISyntaxException, IllegalArgumentException, ZarrException {
         this.path = normalizePath(orgPath);
         int zarrIndex = path.lastIndexOf(".zarr");
         String pathToZarr;
