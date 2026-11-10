@@ -93,13 +93,18 @@ public class ZarrStore {
             throws URISyntaxException, IllegalArgumentException, ZarrException {
         this.path = normalizePath(orgPath);
         if (!path.contains("://")) {
-            store = new StoreHandle(new FilesystemStore(path));
+            store = new FilesystemStore("/")
+                    .resolve(path.replaceFirst("/", ""));
         } else if (path.startsWith("http")) {
-            int sep = path.lastIndexOf("/");
-            String storePath = path.substring(0, sep);
-            String rest = path.substring(sep + 1);
-            // TODO: Fix names with "?" characters
-            store = new HttpStore(storePath).resolve(rest);
+            URI asUri = new URI(path);
+            URI base = new URI(
+                    asUri.getScheme(),
+                    asUri.getAuthority(),
+                    "/",
+                    asUri.getQuery(),
+                    asUri.getFragment());
+            store = new HttpStore(base.toString())
+                    .resolve(asUri.getPath().replaceFirst("/", ""));
         } else if (path.startsWith("s3")) {
             String[] tmp = path.replaceFirst("s3://", "").split("/");
             final String host = tmp[0];

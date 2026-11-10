@@ -143,7 +143,7 @@ public class ZarrStoreTest {
         ZarrStore store = new ZarrStore("/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
         assertTrue(handle.store instanceof FilesystemStore);
-        assertArrayEquals(new String[] { }, handle.keys);
+        assertArrayEquals(new String[] { "foo/bar.zarr/0" }, handle.keys);
     }
 
     @Test
@@ -159,7 +159,17 @@ public class ZarrStoreTest {
         ZarrStore store = new ZarrStore("https://foo.com/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
         assertTrue(handle.store instanceof HttpStore);
-        assertArrayEquals(new String[] { "0" }, handle.keys);
+        assertArrayEquals(new String[] { "foo/bar.zarr/0" }, handle.keys);
+    }
+
+    @Test
+    public void testHttpStoreQueryStringAndFragment()
+            throws URISyntaxException, ZarrException {
+        ZarrStore store = new ZarrStore(
+                "https://foo.com/foo/bar.zarr/0?abc=def#something");
+        StoreHandle handle = store.getStoreHandle();
+        assertTrue(handle.store instanceof HttpStore);
+        assertArrayEquals(new String[] { "foo/bar.zarr/0" }, handle.keys);
     }
 
     @Test
