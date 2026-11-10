@@ -50,7 +50,6 @@ import software.amazon.awssdk.services.s3.S3Configuration;
  *
  * <p>Supported URI schemes: </p>
  * <ul>
- * <li>file:// or no scheme - Local filesystem storage</li>
  * <li>http:// or https:// - HTTP-based storage</li>
  * <li>s3:// - S3-compatible object storage (with authentication via URL parameters)</li>
  * </ul>
