@@ -64,13 +64,10 @@ public class ZarrStore {
     private static final String PATH_WITH_QUERY_REGEX = ".*" + QUERY_REGEX;
 
     /** The underlying store handle for accessing Zarr data. */
-    private StoreHandle store;
+    private final StoreHandle store;
 
     /** The full path to the Zarr store including the .zarr extension. */
-    private String path;
-
-    /** The name of the Zarr (typically the .zarr directory name). */
-    private String name;
+    private final String path;
 
     /**
      * Constructs a ZarrLocation from the given path.
@@ -94,29 +91,16 @@ public class ZarrStore {
     public ZarrStore(final String orgPath)
             throws URISyntaxException, IllegalArgumentException, ZarrException {
         this.path = normalizePath(orgPath);
-        int zarrIndex = path.lastIndexOf(".zarr");
-        String pathToZarr;
-        if (zarrIndex < 0) {
-            pathToZarr = path.substring(0, zarrIndex + 5);
-        } else {
-            pathToZarr = path;
-        }
         if (!path.contains("://")) {
             int sep = path.lastIndexOf("/");
             String storePath = path.substring(0, sep);
             String rest = path.substring(sep + 1);
-            this.name = path.substring(pathToZarr.lastIndexOf("/") + 1);
             store = new FilesystemStore(storePath).resolve(rest);
         } else if (path.startsWith("http")) {
             int sep = path.lastIndexOf("/");
             String storePath = path.substring(0, sep);
             String rest = path.substring(sep + 1);
             // TODO: Fix names with "?" characters
-            this.name = path.substring(pathToZarr.lastIndexOf("/") + 1);
-            if (this.name.contains("?")) {
-                this.name = this.name.substring(0, this.name.indexOf("?"));
-            }
-
             store = new HttpStore(storePath).resolve(rest);
         } else if (path.startsWith("s3")) {
             String[] tmp = path.replaceFirst("s3://", "").split("/");
@@ -127,7 +111,6 @@ public class ZarrStore {
             String rawFinalPart = rest[rest.length - 1];
             String[] pathAndQuery = splitOnQuery(rawFinalPart);
             rest[rest.length - 1] = pathAndQuery[0];
-            this.name = String.join("/", rest);
             // Extract URL parameters for authentication
             Map<String, String> params = new HashMap<>();
             String query = pathAndQuery[1];
@@ -259,15 +242,6 @@ public class ZarrStore {
     }
 
     /**
-     * Returns the name of the Zarr.
-     *
-     * @return the name (typically the .zarr directory name)
-     */
-    public String getName() {
-        return name;
-    }
-
-    /**
      * Returns the full path to the Zarr.
      *
      * @return the complete path
@@ -283,7 +257,7 @@ public class ZarrStore {
      */
     @Override
     public String toString() {
-        return "ZarrStore {" + "path = " + path + " , name = " + name + "}";
+        return "ZarrStore {" + "path = " + path + "}";
     }
 
     /**
