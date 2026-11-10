@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 
 import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.store.FilesystemStore;
+import dev.zarr.zarrjava.store.HttpStore;
+import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.StoreHandle;
 import software.amazon.awssdk.regions.Region;
 
@@ -150,5 +152,21 @@ public class ZarrStoreTest {
         assertThrows(IllegalArgumentException.class, () -> {
             new ZarrStore("file:///foo/bar.zarr/0");
         });
+    }
+
+    @Test
+    public void testHttpStore() throws URISyntaxException, ZarrException {
+        ZarrStore store = new ZarrStore("https://foo.com/foo/bar.zarr/0");
+        StoreHandle handle = store.getStoreHandle();
+        assertTrue(handle.store instanceof HttpStore);
+        assertArrayEquals(new String[] { "0" }, handle.keys);
+    }
+
+    @Test
+    public void testS3Store() throws URISyntaxException, ZarrException {
+        ZarrStore store = new ZarrStore("s3://s3.us-east-1.amazonaws.com/foo/bar.zarr/0");
+        StoreHandle handle = store.getStoreHandle();
+        assertTrue(handle.store instanceof S3Store);
+        assertArrayEquals(new String[] { "bar.zarr", "0" }, handle.keys);
     }
 }
