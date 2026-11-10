@@ -164,7 +164,8 @@ public class ZarrStoreTest {
 
     @Test
     public void testS3Store() throws URISyntaxException, ZarrException {
-        ZarrStore store = new ZarrStore("s3://s3.us-east-1.amazonaws.com/foo/bar.zarr/0");
+        ZarrStore store = new ZarrStore(
+                "s3://s3.us-east-1.amazonaws.com/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
         assertTrue(handle.store instanceof S3Store);
         assertArrayEquals(new String[] { "bar.zarr", "0" }, handle.keys);
