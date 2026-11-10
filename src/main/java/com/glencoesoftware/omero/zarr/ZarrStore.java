@@ -85,8 +85,7 @@ public class ZarrStore {
      *
      * @param orgPath                   the path to the Zarr
      * @throws URISyntaxException       if the path is not a valid URI
-     * @throws IllegalArgumentException if the path does not contain .zarr or uses an unsupported
-     *                                  URI scheme
+     * @throws IllegalArgumentException if the path uses an unsupported URI scheme
      * @throws ZarrException            if there was a problem reading the zarr
      */
     public ZarrStore(final String orgPath)
