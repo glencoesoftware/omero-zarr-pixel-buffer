@@ -101,7 +101,7 @@ public class ZarrStore {
         } else {
             pathToZarr = path;
         }
-        if (!path.contains("://") || path.startsWith("file")) {
+        if (!path.contains("://")) {
             int sep = path.lastIndexOf("/");
             String storePath = path.substring(0, sep);
             String rest = path.substring(sep + 1);

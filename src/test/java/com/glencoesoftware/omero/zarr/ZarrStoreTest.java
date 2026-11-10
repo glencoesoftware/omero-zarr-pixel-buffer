@@ -1,11 +1,14 @@
 package com.glencoesoftware.omero.zarr;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import org.junit.jupiter.api.Test;
+
+import dev.zarr.zarrjava.ZarrException;
+import dev.zarr.zarrjava.store.FilesystemStore;
+import dev.zarr.zarrjava.store.StoreHandle;
 import software.amazon.awssdk.regions.Region;
 
 /** Unit test for ZarrStore. */
@@ -131,5 +134,21 @@ public class ZarrStoreTest {
         assertEquals(
                 Region.US_EAST_1,
                 ZarrStore.getRegionFromUri(new URI("https://livingobjects.ebi.ac.uk/")));
+    }
+
+    @Test
+    public void testFilesystemStore() throws URISyntaxException, ZarrException {
+        ZarrStore store = new ZarrStore("/foo/bar.zarr/0");
+        StoreHandle handle = store.getStoreHandle();
+        assertTrue(handle.store instanceof FilesystemStore);
+        assertArrayEquals(new String[] { "0" }, handle.keys);
+    }
+
+    @Test
+    public void testFilesystemStoreIllegalScheme()
+            throws URISyntaxException, ZarrException {
+        assertThrows(IllegalArgumentException.class, () -> {
+            new ZarrStore("file:///foo/bar.zarr/0");
+        });
     }
 }
