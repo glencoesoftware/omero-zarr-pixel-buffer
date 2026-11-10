@@ -23,7 +23,6 @@ import dev.zarr.zarrjava.store.FilesystemStore;
 import dev.zarr.zarrjava.store.HttpStore;
 import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.StoreHandle;
-import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -103,10 +102,10 @@ public class ZarrStore {
             pathToZarr = path;
         }
         if (!path.contains("://") || path.startsWith("file")) {
-            int sep = path.lastIndexOf(File.separator);
+            int sep = path.lastIndexOf("/");
             String storePath = path.substring(0, sep);
             String rest = path.substring(sep + 1);
-            this.name = path.substring(pathToZarr.lastIndexOf(File.separator) + 1);
+            this.name = path.substring(pathToZarr.lastIndexOf("/") + 1);
             store = new FilesystemStore(storePath).resolve(rest);
         } else if (path.startsWith("http")) {
             int sep = path.lastIndexOf("/");
