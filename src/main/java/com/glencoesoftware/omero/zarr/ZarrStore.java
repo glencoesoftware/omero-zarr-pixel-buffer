@@ -25,15 +25,17 @@ import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.StoreHandle;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.regex.Pattern;
+
 import org.slf4j.LoggerFactory;
+
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
@@ -60,10 +62,6 @@ public class ZarrStore {
 
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(ZarrStore.class);
 
-    private static final String QUERY_REGEX = "\\?.+=.+";
-
-    private static final String PATH_WITH_QUERY_REGEX = ".*" + QUERY_REGEX;
-
     /** The underlying store handle for accessing Zarr data. */
     private final StoreHandle store;
 
@@ -83,14 +81,14 @@ public class ZarrStore {
      * </ul>
      * Example: s3://host/bucket/path/data.zarr?anonymous=true
      *
-     * @param orgPath                   the path to the Zarr
+     * @param path                      the path to the Zarr
      * @throws URISyntaxException       if the path is not a valid URI
      * @throws IllegalArgumentException if the path uses an unsupported URI scheme
      * @throws ZarrException            if there was a problem reading the zarr
      */
-    public ZarrStore(final String orgPath)
+    public ZarrStore(final String path)
             throws URISyntaxException, IllegalArgumentException, ZarrException {
-        this.path = normalizePath(orgPath);
+        this.path = path;
         if (!path.contains("://")) {
             store = new FilesystemStore("/")
                     .resolve(path.replaceFirst("/", ""));
@@ -105,37 +103,13 @@ public class ZarrStore {
             store = new HttpStore(base.toString())
                     .resolve(asUri.getPath().replaceFirst("/", ""));
         } else if (path.startsWith("s3")) {
-            String[] tmp = path.replaceFirst("s3://", "").split("/");
-            final String host = tmp[0];
-            final String bucket = tmp[1];
-            final String[] rest = Arrays.copyOfRange(tmp, 2, tmp.length);
-            // Remove all query parameters
-            String rawFinalPart = rest[rest.length - 1];
-            String[] pathAndQuery = splitOnQuery(rawFinalPart);
-            rest[rest.length - 1] = pathAndQuery[0];
-            // Extract URL parameters for authentication
-            Map<String, String> params = new HashMap<>();
-            String query = pathAndQuery[1];
-            if (query != null) {
-                if (query.startsWith("?")) {
-                    query = query.substring(1);
-                }
-                String[] pairs = query.split("&");
-                for (String pair : pairs) {
-                    int idx = pair.indexOf("=");
-                    if (idx > 0) {
-                        params.put(pair.substring(0, idx), pair.substring(idx + 1));
-                    }
-                }
-            }
-
-            URI endpoint = new URI("https://" + host);
+            S3Path s3path = new S3Path(path);
 
             S3ClientBuilder clientBuilder =  S3Client.builder()
                     .httpClientBuilder(UrlConnectionHttpClient.builder()
                             .socketTimeout(Duration.ofMinutes(5)));
-            clientBuilder.endpointOverride(endpoint);
-            clientBuilder.region(getRegionFromUri(endpoint));
+            clientBuilder.endpointOverride(new URI("https://" + s3path.host));
+            clientBuilder.region(s3path.getRegion());
 
             S3Configuration s3Config = S3Configuration.builder().pathStyleAccessEnabled(true)
                 .build();
@@ -143,80 +117,23 @@ public class ZarrStore {
 
             assertNoAwsSystemEnvCredentials();
 
-            if (params.containsKey("anonymous")) {
+            if (s3path.params.containsKey("anonymous")) {
                 clientBuilder.credentialsProvider(AnonymousCredentialsProvider.create());
             } else {
                 clientBuilder.credentialsProvider(
                         AwsCredentialsProviderChain.builder()
                         .addCredentialsProvider(ProfileCredentialsProvider
-                                .create(params.get("profile")))
+                                .create(s3path.params.get("profile")))
                         .addCredentialsProvider(
                                 InstanceProfileCredentialsProvider.create()).build());
             }
 
             S3Client client = clientBuilder.build();
-            store = new S3Store(client, bucket, null).resolve(rest);
+            store = new S3Store(client, s3path.bucket, null).resolve(s3path.key);
         } else {
             throw new IllegalArgumentException("Unsupported URI scheme: "
                     + path.subSequence(0, path.indexOf("://") + 3));
         }
-    }
-
-    /**
-     * Retrieves the AWS region from a given URI.  Defaults to
-     * {@link Region.US_EAST_1} if a region cannot be detected.
-     *
-     * @param uri URI to retrieve a region for
-     * @return The region
-     */
-    public static Region getRegionFromUri(URI uri) {
-        Optional<Region> region = AwsHostNameUtils.parseSigningRegion(uri.getHost(), null);
-        if (region.isPresent()) {
-            return region.get();
-        }
-        return Region.US_EAST_1;
-    }
-
-    /**
-     * A method to split a query-parameter-like segment from a string.
-     * this method assumes there will be no ? characters in the parameters.
-     * This means the method will only search from the last instance of the "?"
-     * character until the end of the string.
-     *
-     * @param uri The String to remove the parameter from
-     * @return A String array of size 2. First element is the path without the query
-     *         (or entire path if no query is found) and the second is the query string
-     *         or {@code null} if no query is found.
-     */
-    public static String[] splitOnQuery(String uri) {
-        String[] pathAndQuery = new String[2];
-        pathAndQuery[0] = uri;
-        int lastQuestionMarkIdx = uri.lastIndexOf("?");
-        if (lastQuestionMarkIdx != -1) {
-            String potentialQuery = uri.substring(lastQuestionMarkIdx);
-            if (potentialQuery.matches(QUERY_REGEX)) {
-                pathAndQuery[0] = uri.substring(0, lastQuestionMarkIdx);
-                pathAndQuery[1] = potentialQuery;
-            }
-        }
-        return pathAndQuery;
-    }
-
-    /**
-     * Removes trailing slashes from the path component of the given URI while preserving any
-     * query string. Trailing slashes otherwise produce empty path segments when the URI is
-     * split, which leads to malformed S3 keys such as {@code path//zarr.json}.
-     *
-     * @param orgPath the original URI, possibly ending in one or more slashes
-     * @return the URI with trailing slashes removed from the path component
-     */
-    static String normalizePath(String orgPath) {
-        String[] pathAndQuery = splitOnQuery(orgPath);
-        String normalized = pathAndQuery[0];
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized + (pathAndQuery[1] != null ? pathAndQuery[1] : "");
     }
 
     private void assertNoAwsSystemEnvCredentials() {
@@ -241,15 +158,6 @@ public class ZarrStore {
      */
     public StoreHandle getStoreHandle() {
         return store;
-    }
-
-    /**
-     * Returns the full path to the Zarr.
-     *
-     * @return the complete path
-     */
-    public String getPath() {
-        return path;
     }
 
     /**
@@ -289,5 +197,75 @@ public class ZarrStore {
     @Override
     public int hashCode() {
         return Objects.hash(path);
+    }
+
+    static class S3Path {
+
+        static final Pattern QUERY_REGEX = Pattern.compile("\\?.+=.+");
+
+        final String host;
+
+        final String bucket;
+
+        final String key;
+
+        final Map<String, String> params = new HashMap<String, String>();
+
+        public S3Path(String uri) {
+            List<String> parts = new ArrayList<>(
+                    Arrays.asList(uri.replaceFirst("s3://", "").split("/")));
+            host = parts.remove(0);
+            bucket = parts.remove(0);
+            // Remove all query parameters, strip trailing slashes
+            String[] pathAndQuery = splitOnQuery(parts.get(parts.size() -1 ));
+            parts.set(parts.size() - 1, pathAndQuery[0]);
+            key  = String.join("/", parts).replaceAll("/+$", "");
+            // Extract URL parameters for authentication
+            String query = pathAndQuery[1].replaceFirst("\\?", "");
+            for (String pair : query.split("&")) {
+                int idx = pair.indexOf("=");
+                if (idx > 0) {
+                    params.put(pair.substring(0, idx), pair.substring(idx + 1));
+                }
+            }
+        }
+
+        /**
+         * A method to split a query-parameter-like segment from a string.
+         * this method assumes there will be no ? characters in the parameters.
+         * This means the method will only search from the last instance of the "?"
+         * character until the end of the string.
+         *
+         * @param uri The String to remove the parameter from
+         * @return A String array of size 2. First element is the path without the query
+         *         (or entire path if no query is found) and the second is the query string
+         *         which will be an empty string if no query is found.
+         */
+        public String[] splitOnQuery(String uri) {
+            int idx = uri.lastIndexOf("?");
+            if (idx < 0) {
+                return new String[] { uri, "" };
+            }
+
+            String query = uri.substring(idx);
+            if (!QUERY_REGEX.matcher(query).matches()) {
+                return new String[] { uri, "" };
+            }
+            return new String[] {
+                 uri.substring(0, idx), uri.substring(idx + 1)
+            };
+        }
+
+        /**
+         * Retrieves the AWS region for this S3 path.  Defaults to
+         * {@link Region.US_EAST_1} if a region cannot be detected.
+         *
+         * @param uri URI to retrieve a region for
+         * @return The region
+         */
+        public Region getRegion() {
+            return AwsHostNameUtils.parseSigningRegion(host, null)
+                    .orElse(Region.US_EAST_1);
+        }
     }
 }
