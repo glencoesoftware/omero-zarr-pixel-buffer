@@ -33,9 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
-
 import org.slf4j.LoggerFactory;
-
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
@@ -217,7 +215,7 @@ public class ZarrStore {
             host = parts.remove(0);
             bucket = parts.remove(0);
             // Remove all query parameters, strip trailing slashes
-            String[] pathAndQuery = splitOnQuery(parts.get(parts.size() -1 ));
+            String[] pathAndQuery = splitOnQuery(parts.get(parts.size() - 1));
             parts.set(parts.size() - 1, pathAndQuery[0]);
             key  = String.join("/", parts).replaceAll("/+$", "");
             // Extract URL parameters for authentication

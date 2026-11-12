@@ -2,19 +2,16 @@ package com.glencoesoftware.omero.zarr;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.net.URISyntaxException;
-import java.util.Map;
-import java.util.regex.Matcher;
-
-import org.junit.jupiter.api.Test;
-
 import com.glencoesoftware.omero.zarr.ZarrStore.S3Path;
-
 import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.store.FilesystemStore;
 import dev.zarr.zarrjava.store.HttpStore;
 import dev.zarr.zarrjava.store.S3Store;
 import dev.zarr.zarrjava.store.StoreHandle;
+import java.net.URISyntaxException;
+import java.util.Map;
+import java.util.regex.Matcher;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.regions.Region;
 
 /** Unit test for ZarrStore. */
@@ -113,7 +110,8 @@ public class ZarrStoreTest {
     @Test
     public void testS3PathWithQuestionMarkAnonymous() {
         S3Path v = new S3Path(
-                "s3://s3.us-east-1.amazonaws.com/buck/my/test/path/myfile=?withquestionmark.zarr?anonymous=true");
+                "s3://s3.us-east-1.amazonaws.com/buck/my/test/path/"
+                + "myfile=?withquestionmark.zarr?anonymous=true");
         assertEquals("s3.us-east-1.amazonaws.com", v.host);
         assertEquals("buck", v.bucket);
         assertEquals("my/test/path/myfile=?withquestionmark.zarr", v.key);
@@ -123,7 +121,8 @@ public class ZarrStoreTest {
     @Test
     public void testS3PathWithProfileWithEqualsAndSpaces() {
         S3Path v = new S3Path(
-                "s3://s3.us-east-1.amazonaws.com/buck/my/test/path/myfile=?withquestionmark.zarr?profile=test= name");
+                "s3://s3.us-east-1.amazonaws.com/buck/my/test/path/"
+                + "myfile=?withquestionmark.zarr?profile=test= name");
         assertEquals("s3.us-east-1.amazonaws.com", v.host);
         assertEquals("buck", v.bucket);
         assertEquals("my/test/path/myfile=?withquestionmark.zarr", v.key);

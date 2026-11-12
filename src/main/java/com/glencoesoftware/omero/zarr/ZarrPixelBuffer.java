@@ -27,7 +27,6 @@ import dev.zarr.zarrjava.core.Attributes;
 import dev.zarr.zarrjava.core.Group;
 import dev.zarr.zarrjava.v3.codec.Codec;
 import dev.zarr.zarrjava.v3.codec.core.ShardingIndexedCodec;
-
 import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
