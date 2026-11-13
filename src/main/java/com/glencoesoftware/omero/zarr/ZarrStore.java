@@ -82,10 +82,9 @@ public class ZarrStore {
      * @param path                      the path to the Zarr
      * @throws URISyntaxException       if the path is not a valid URI
      * @throws IllegalArgumentException if the path uses an unsupported URI scheme
-     * @throws ZarrException            if there was a problem reading the zarr
      */
     public ZarrStore(final String path)
-            throws URISyntaxException, IllegalArgumentException, ZarrException {
+            throws URISyntaxException, IllegalArgumentException {
         this.path = path;
         if (!path.contains("://")) {
             store = new FilesystemStore("/")
