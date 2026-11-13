@@ -22,9 +22,11 @@ import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.core.Array;
+import dev.zarr.zarrjava.core.ArrayMetadata;
 import dev.zarr.zarrjava.core.Attributes;
-import dev.zarr.zarrjava.core.DataType;
 import dev.zarr.zarrjava.core.Group;
+import dev.zarr.zarrjava.v3.codec.Codec;
+import dev.zarr.zarrjava.v3.codec.core.ShardingIndexedCodec;
 import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
@@ -35,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.LongStream;
 import loci.formats.FormatTools;
@@ -244,13 +247,39 @@ public class ZarrPixelBuffer implements PixelBuffer {
      *
      * @return See above.
      */
-    public int[][] getChunks() throws IOException {
+    public int[][] getChunks() {
         List<Map<String, String>> datasets = getDatasets();
         List<int[]> chunks = new ArrayList<int[]>();
         for (Map<String, String> dataset : datasets) {
-            Map<String, Object> arrayMetadata = root.metadataFromArray(dataset.get("path"));
-            int[] shape = (int[]) arrayMetadata.get("chunkShape");
-            chunks.add(shape);
+            try {
+                Array array = zarrArrayCache.get(
+                        new ZarrPath(root, dataset.get("path"))).get();
+                ArrayMetadata metadata = array.metadata();
+                int[] chunkShape = metadata.chunkShape();
+                if (array instanceof dev.zarr.zarrjava.v3.Array) {
+                    // A Zarr v3 array which may be sharded.  If sharding is
+                    // present we'll need to loop through a potentially nested
+                    // set of shards to find the actual chunk size.
+                    dev.zarr.zarrjava.v3.ArrayMetadata metadata3 =
+                            (dev.zarr.zarrjava.v3.ArrayMetadata) metadata;
+                    Optional<Codec> shardingCodec =
+                            dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                    metadata3.codecs);
+                    chunkShape = metadata3.chunkShape();
+                    while (shardingCodec.isPresent()) {
+                        ShardingIndexedCodec.Configuration shardingConfig =
+                            ((ShardingIndexedCodec) shardingCodec.get()).configuration;
+                        chunkShape = shardingConfig.chunkShape;
+                        shardingCodec =
+                                dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                        shardingConfig.codecs);
+                    }
+                }
+                chunks.add(chunkShape);
+            } catch (Exception e) {
+                // FIXME: Throw the right exception
+                throw new RuntimeException(e);
+            }
         }
         return chunks.toArray(new int[chunks.size()][]);
     }

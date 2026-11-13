@@ -112,7 +112,7 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
      */
     public static dev.zarr.zarrjava.core.Group getZarrGroup(ZarrPath zp)
         throws IOException, IllegalArgumentException, URISyntaxException {
-        StoreHandle handle = zp.store.store;
+        StoreHandle handle = zp.store.getStoreHandle();
         try {
             return dev.zarr.zarrjava.v3.Group.open(handle);
         } catch (IOException e) {
@@ -130,7 +130,7 @@ public class ZarrPixelsService extends ome.io.nio.PixelsService {
      */
     public static Array getZarrArray(ZarrPath zp)
         throws IOException, IllegalArgumentException, URISyntaxException, ZarrException {
-        StoreHandle handle = zp.store.store.resolve(zp.path.split("/"));
+        StoreHandle handle = zp.store.getStoreHandle().resolve(zp.path.split("/"));
         try {
             return dev.zarr.zarrjava.v3.Array.open(handle);
         } catch (IOException e) {
