@@ -170,7 +170,7 @@ public class ZarrStoreTest {
     }
 
     @Test
-    public void testFilesystemStore() throws URISyntaxException, ZarrException {
+    public void testFilesystemStore() throws URISyntaxException {
         ZarrStore store = new ZarrStore("/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
         assertTrue(handle.store instanceof FilesystemStore);
@@ -186,7 +186,7 @@ public class ZarrStoreTest {
     }
 
     @Test
-    public void testHttpStore() throws URISyntaxException, ZarrException {
+    public void testHttpStore() throws URISyntaxException {
         ZarrStore store = new ZarrStore("https://foo.com/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
         assertTrue(handle.store instanceof HttpStore);
@@ -204,7 +204,7 @@ public class ZarrStoreTest {
     }
 
     @Test
-    public void testS3Store() throws URISyntaxException, ZarrException {
+    public void testS3Store() throws URISyntaxException {
         ZarrStore store = new ZarrStore(
                 "s3://s3.us-east-1.amazonaws.com/foo/bar.zarr/0");
         StoreHandle handle = store.getStoreHandle();
