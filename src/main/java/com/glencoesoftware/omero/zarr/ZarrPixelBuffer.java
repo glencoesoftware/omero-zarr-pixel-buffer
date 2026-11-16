@@ -243,48 +243,6 @@ public class ZarrPixelBuffer implements PixelBuffer {
     }
 
     /**
-     * Retrieves the array chunk sizes of all subresolutions of this multiscale buffer.
-     *
-     * @return See above.
-     */
-    public int[][] getChunks() {
-        List<Map<String, String>> datasets = getDatasets();
-        List<int[]> chunks = new ArrayList<int[]>();
-        for (Map<String, String> dataset : datasets) {
-            try {
-                Array array = zarrArrayCache.get(
-                        new ZarrPath(root, dataset.get("path"))).get();
-                ArrayMetadata metadata = array.metadata();
-                int[] chunkShape = metadata.chunkShape();
-                if (array instanceof dev.zarr.zarrjava.v3.Array) {
-                    // A Zarr v3 array which may be sharded.  If sharding is
-                    // present we'll need to loop through a potentially nested
-                    // set of shards to find the actual chunk size.
-                    dev.zarr.zarrjava.v3.ArrayMetadata metadata3 =
-                            (dev.zarr.zarrjava.v3.ArrayMetadata) metadata;
-                    Optional<Codec> shardingCodec =
-                            dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
-                                    metadata3.codecs);
-                    chunkShape = metadata3.chunkShape();
-                    while (shardingCodec.isPresent()) {
-                        ShardingIndexedCodec.Configuration shardingConfig =
-                            ((ShardingIndexedCodec) shardingCodec.get()).configuration;
-                        chunkShape = shardingConfig.chunkShape;
-                        shardingCodec =
-                                dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
-                                        shardingConfig.codecs);
-                    }
-                }
-                chunks.add(chunkShape);
-            } catch (Exception e) {
-                // FIXME: Throw the right exception
-                throw new RuntimeException(e);
-            }
-        }
-        return chunks.toArray(new int[chunks.size()][]);
-    }
-
-    /**
      * Retrieves the datasets metadata of the first multiscale from the root group attributes.
      *
      * @return See above.
@@ -938,8 +896,33 @@ public class ZarrPixelBuffer implements PixelBuffer {
     @Override
     public Dimension getTileSize() {
         try {
-            int[] chunks = getChunks()[resolutionLevel];
-            return new Dimension(chunks[axesOrder.get(Axis.X)], chunks[axesOrder.get(Axis.Y)]);
+            Map<String, String> dataset = getDatasets().get(resolutionLevel);
+            Array array = zarrArrayCache.get(
+                    new ZarrPath(root, dataset.get("path"))).get();
+            ArrayMetadata metadata = array.metadata();
+            int[] chunkShape = metadata.chunkShape();
+            if (array instanceof dev.zarr.zarrjava.v3.Array) {
+                // A Zarr v3 array which may be sharded.  If sharding is
+                // present we'll need to loop through a potentially nested
+                // set of shards to find the actual chunk size.
+                dev.zarr.zarrjava.v3.ArrayMetadata metadata3 =
+                        (dev.zarr.zarrjava.v3.ArrayMetadata) metadata;
+                Optional<Codec> shardingCodec =
+                        dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                metadata3.codecs);
+                chunkShape = metadata3.chunkShape();
+                while (shardingCodec.isPresent()) {
+                    ShardingIndexedCodec.Configuration shardingConfig =
+                        ((ShardingIndexedCodec) shardingCodec.get()).configuration;
+                    chunkShape = shardingConfig.chunkShape;
+                    shardingCodec =
+                            dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                    shardingConfig.codecs);
+                }
+            }
+            return new Dimension(
+                    chunkShape[axesOrder.get(Axis.X)],
+                    chunkShape[axesOrder.get(Axis.Y)]);
         } catch (Exception e) {
             // FIXME: Throw the right exception
             throw new RuntimeException(e);
