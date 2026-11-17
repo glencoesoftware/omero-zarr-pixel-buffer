@@ -402,6 +402,48 @@ public class ZarrPixelBufferTest {
         }
     }
 
+
+    static Stream<Arguments> getZDownsampledDimensions() {
+        return Stream.of(
+            Arguments.of(1024, 1024, 16, 1, 1, "uint8", SupportedVersions.NGFF_04),
+            Arguments.of(1024, 1024, 16, 1, 1, "uint8", SupportedVersions.NGFF_05)
+        );
+    }
+
+    /**
+     * Test datasets with resolution prefix.
+     */
+    @ParameterizedTest
+    @MethodSource("getZDownsampledDimensions")
+    public void testPixelsZDownsampled(int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+            String pixelType, SupportedVersions version)
+            throws IOException, URISyntaxException, ZarrException {
+        int resolutions = 3;
+        Path output = writeTestZarr(
+            sizeT, sizeC, sizeZ, sizeY, sizeX, pixelType, version, "--downsample-z",
+              "--resolutions", String.valueOf(resolutions));
+        ZarrStore store = new ZarrStore(output.resolve("0").toString());
+        Pixels pixels = new Pixels(null, null, sizeX, sizeY, sizeZ, sizeC, sizeT, "", null);
+        try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, sizeX, sizeY)) {
+            assertPixels(zpb, sizeX, sizeY, sizeZ, sizeC, sizeT, pixelType, "XYZCT");
+            for (int resolution = 0; resolution < resolutions; resolution++) {
+                zpb.setResolutionLevel(resolutions - resolution - 1);
+                int c = 0;
+                int t = 0;
+                for (int z = 0; z < sizeZ; z++) {
+                    byte[] tileData = zpb.getTile(
+                        z, c, t, 0, 0, zpb.getSizeX(), zpb.getSizeY()).getData().array();
+                    byte[] planeData = zpb.getPlane(z, c, t).getData().array();
+                    assertArrayEquals(tileData, planeData);
+                }
+                byte[] stack = zpb.getStack(c, t).getData().array();
+                byte[] timepoint = zpb.getTimepoint(t).getData().array();
+                assertArrayEquals(stack, timepoint);
+            }
+        }
+    }
+
+
     static Stream<Arguments> getDimensionOrders() {
         return Stream.of(
             Arguments.of(128, 64, 2, 3, 4, "uint8", "XYZCT", SupportedVersions.NGFF_04),
