@@ -248,40 +248,51 @@ public class ZarrPixelBuffer implements PixelBuffer {
      * @return See above.
      */
     public int[][] getChunks() {
-        List<Map<String, String>> datasets = getDatasets();
-        List<int[]> chunks = new ArrayList<int[]>();
-        for (Map<String, String> dataset : datasets) {
-            try {
-                Array array = zarrArrayCache.get(
-                        new ZarrPath(root, dataset.get("path"))).get();
-                ArrayMetadata metadata = array.metadata();
-                int[] chunkShape = metadata.chunkShape();
-                if (array instanceof dev.zarr.zarrjava.v3.Array) {
-                    // A Zarr v3 array which may be sharded.  If sharding is
-                    // present we'll need to loop through a potentially nested
-                    // set of shards to find the actual chunk size.
-                    dev.zarr.zarrjava.v3.ArrayMetadata metadata3 =
-                            (dev.zarr.zarrjava.v3.ArrayMetadata) metadata;
-                    Optional<Codec> shardingCodec =
-                            dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
-                                    metadata3.codecs);
-                    chunkShape = metadata3.chunkShape();
-                    while (shardingCodec.isPresent()) {
-                        ShardingIndexedCodec.Configuration shardingConfig =
-                            ((ShardingIndexedCodec) shardingCodec.get()).configuration;
-                        chunkShape = shardingConfig.chunkShape;
-                        shardingCodec =
-                                dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
-                                        shardingConfig.codecs);
-                    }
-                }
-                chunks.add(chunkShape);
-            } catch (Exception e) {
-                // FIXME: Throw the right exception
-                throw new RuntimeException(e);
-            }
+        int resolutionLevels = getResolutionLevels();
+        int[][] chunks = new int[resolutionLevels][];
+        for (int i = 0; i < resolutionLevels; i++) {
+            chunks[i] = getChunks(i);
         }
-        return chunks.toArray(new int[chunks.size()][]);
+        return chunks;
+    }
+
+    /**
+     * Retrieves the array chunk sizes of a single subresolution.
+     *
+     * @param resolutionLevel the resolution level to get chunk sizes for
+     * @return See above.
+     */
+    private int[] getChunks(int resolutionLevel) {
+        Map<String, String> dataset = getDatasets().get(resolutionLevel);
+        try {
+            Array array = zarrArrayCache.get(
+                    new ZarrPath(root, dataset.get("path"))).get();
+            ArrayMetadata metadata = array.metadata();
+            int[] chunkShape = metadata.chunkShape();
+            if (array instanceof dev.zarr.zarrjava.v3.Array) {
+                // A Zarr v3 array which may be sharded.  If sharding is
+                // present we'll need to loop through a potentially nested
+                // set of shards to find the actual chunk size.
+                dev.zarr.zarrjava.v3.ArrayMetadata metadata3 =
+                        (dev.zarr.zarrjava.v3.ArrayMetadata) metadata;
+                Optional<Codec> shardingCodec =
+                        dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                metadata3.codecs);
+                chunkShape = metadata3.chunkShape();
+                while (shardingCodec.isPresent()) {
+                    ShardingIndexedCodec.Configuration shardingConfig =
+                        ((ShardingIndexedCodec) shardingCodec.get()).configuration;
+                    chunkShape = shardingConfig.chunkShape;
+                    shardingCodec =
+                            dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                    shardingConfig.codecs);
+                }
+            }
+            return chunkShape;
+        } catch (Exception e) {
+            // FIXME: Throw the right exception
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -938,7 +949,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
     @Override
     public Dimension getTileSize() {
         try {
-            int[] chunks = getChunks()[resolutionLevel];
+            int[] chunks = getChunks(resolutionLevel);
             return new Dimension(chunks[axesOrder.get(Axis.X)], chunks[axesOrder.get(Axis.Y)]);
         } catch (Exception e) {
             // FIXME: Throw the right exception
