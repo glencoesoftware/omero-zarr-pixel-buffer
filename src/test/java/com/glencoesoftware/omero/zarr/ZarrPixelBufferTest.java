@@ -585,22 +585,26 @@ public class ZarrPixelBufferTest {
 
     static Stream<Arguments> getResolutions() {
         return Stream.of(
-            Arguments.of(1, null, SupportedVersions.NGFF_04),
-            Arguments.of(1, "scale", SupportedVersions.NGFF_04),
-            Arguments.of(5, null, SupportedVersions.NGFF_04),
-            Arguments.of(5, "scale", SupportedVersions.NGFF_04),
-            Arguments.of(1, null, SupportedVersions.NGFF_05),
-            Arguments.of(1, "scale", SupportedVersions.NGFF_05),
-            Arguments.of(5, null, SupportedVersions.NGFF_05),
-            Arguments.of(5, "scale", SupportedVersions.NGFF_05)
+            Arguments.of(1, null, false, SupportedVersions.NGFF_04),
+            Arguments.of(1, "scale", false, SupportedVersions.NGFF_04),
+            Arguments.of(5, null, false, SupportedVersions.NGFF_04),
+            Arguments.of(5, "scale", false, SupportedVersions.NGFF_04),
+            Arguments.of(5, null, true, SupportedVersions.NGFF_04),
+            Arguments.of(5, "scale", true, SupportedVersions.NGFF_04),
+            Arguments.of(1, null, false, SupportedVersions.NGFF_05),
+            Arguments.of(1, "scale", false, SupportedVersions.NGFF_05),
+            Arguments.of(5, null, false, SupportedVersions.NGFF_05),
+            Arguments.of(5, "scale", false, SupportedVersions.NGFF_05),
+            Arguments.of(5, null, true, SupportedVersions.NGFF_05),
+            Arguments.of(5, "scale", true, SupportedVersions.NGFF_05)
         );
     }
 
     /** Test resolutions API. */
     @ParameterizedTest
     @MethodSource("getResolutions")
-    public void testResolutions(int resolutions, String resolutionPrefix, SupportedVersions version)
-            throws IOException, URISyntaxException, ZarrException {
+    public void testResolutions(int resolutions, String resolutionPrefix, Boolean downsampleZ,
+            SupportedVersions version) throws IOException, URISyntaxException, ZarrException {
         List<String> args = new ArrayList<String>();
         args.add("--resolutions");
         args.add(String.valueOf(resolutions));
@@ -609,8 +613,11 @@ public class ZarrPixelBufferTest {
             args.add("--scale-format-string");
             args.add("%d/" + resolutionPrefix + "%d");
         }
+        if (downsampleZ) {
+            args.add("--downsample-z");
+        }
         Path output = writeTestZarr(
-            1, 3, 1, 1024, 2048, "uint8", version, args.toArray(new String[]{}));
+            1, 3, 16, 1024, 2048, "uint8", version, args.toArray(new String[]{}));
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, 2048, 1024, 3, 2, 1, "", null);
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
@@ -630,8 +637,13 @@ public class ZarrPixelBufferTest {
                 Map<String, Object> transformation = new HashMap<String, Object>();
                 double scale = Math.pow(2, resolution);
                 transformation.put("type", "scale");
-                transformation.put("scale", Arrays.asList(
-                    new Double[] {1.0, 1.0, 1.0, scale, scale}));
+                List<Double> scaleList;
+                if (downsampleZ) {
+                    scaleList = Arrays.asList(new Double[] {1.0, 1.0, scale, scale, scale});
+                } else {
+                    scaleList = Arrays.asList(new Double[] {1.0, 1.0, 1.0, scale, scale});
+                }
+                transformation.put("scale", scaleList);
                 transformations.add(transformation);
                 assertEquals(
                     datasets.get(resolution).get("coordinateTransformations"), transformations);
@@ -639,7 +651,7 @@ public class ZarrPixelBufferTest {
                 zpb.setResolutionLevel(resolutions - resolution - 1);
                 assertEquals(zpb.getSizeT(), 1);
                 assertEquals(zpb.getSizeC(), 3);
-                assertEquals(zpb.getSizeZ(), 1);
+                assertEquals(zpb.getSizeZ(), 16);
                 assertEquals(zpb.getSizeY(), 1024 / (int) scale);
                 assertEquals(zpb.getSizeX(), 2048 / (int) scale);
             }
