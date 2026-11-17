@@ -19,28 +19,20 @@
 package com.glencoesoftware.omero.zarr;
 
 import dev.zarr.zarrjava.ZarrException;
-import dev.zarr.zarrjava.core.Array;
-import dev.zarr.zarrjava.core.ArrayMetadata;
-import dev.zarr.zarrjava.core.Group;
-import dev.zarr.zarrjava.core.Node;
 import dev.zarr.zarrjava.store.FilesystemStore;
 import dev.zarr.zarrjava.store.HttpStore;
 import dev.zarr.zarrjava.store.S3Store;
-import dev.zarr.zarrjava.store.Store;
 import dev.zarr.zarrjava.store.StoreHandle;
-import dev.zarr.zarrjava.v2.Endianness;
-import dev.zarr.zarrjava.v3.codec.Codec;
-import dev.zarr.zarrjava.v3.codec.core.ShardingIndexedCodec;
-import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.regex.Pattern;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
@@ -60,7 +52,6 @@ import software.amazon.awssdk.services.s3.S3Configuration;
  *
  * <p>Supported URI schemes: </p>
  * <ul>
- * <li>file:// or no scheme - Local filesystem storage</li>
  * <li>http:// or https:// - HTTP-based storage</li>
  * <li>s3:// - S3-compatible object storage (with authentication via URL parameters)</li>
  * </ul>
@@ -69,18 +60,11 @@ public class ZarrStore {
 
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(ZarrStore.class);
 
-    private static final String QUERY_REGEX = "\\?.+=.+";
-
-    private static final String PATH_WITH_QUERY_REGEX = ".*" + QUERY_REGEX;
-
     /** The underlying store handle for accessing Zarr data. */
-    StoreHandle store;
+    private final StoreHandle store;
 
     /** The full path to the Zarr store including the .zarr extension. */
-    String path;
-
-    /** The name of the Zarr (typically the .zarr directory name). */
-    String name;
+    private final String path;
 
     /**
      * Constructs a ZarrLocation from the given path.
@@ -95,73 +79,34 @@ public class ZarrStore {
      * </ul>
      * Example: s3://host/bucket/path/data.zarr?anonymous=true
      *
-     * @param orgPath                   the path to the Zarr
+     * @param path                      the path to the Zarr
      * @throws URISyntaxException       if the path is not a valid URI
-     * @throws IllegalArgumentException if the path does not contain .zarr or uses an unsupported
-     *                                  URI scheme
-     * @throws ZarrException            if there was a problem reading the zarr
-     * @throws IOException              if there was a problem reading the zarr
+     * @throws IllegalArgumentException if the path uses an unsupported URI scheme
      */
-    public ZarrStore(final String orgPath) throws URISyntaxException, IllegalArgumentException,
-        IOException, ZarrException {
-        this.path = normalizePath(orgPath);
-        int zarrIndex = path.lastIndexOf(".zarr");
-        String pathToZarr;
-        if (zarrIndex < 0) {
-            pathToZarr = path.substring(0, zarrIndex + 5);
-        } else {
-            pathToZarr = path;
-        }
-        if (!path.contains("://") || path.startsWith("file")) {
-            int sep = path.lastIndexOf(File.separator);
-            String storePath = path.substring(0, sep);
-            String rest = path.substring(sep + 1);
-            this.name = path.substring(pathToZarr.lastIndexOf(File.separator) + 1);
-            store = new FilesystemStore(storePath).resolve(rest);
+    public ZarrStore(final String path)
+            throws URISyntaxException, IllegalArgumentException {
+        this.path = path;
+        if (!path.contains("://")) {
+            store = new FilesystemStore("/")
+                    .resolve(path.replaceFirst("/", ""));
         } else if (path.startsWith("http")) {
-            int sep = path.lastIndexOf("/");
-            String storePath = path.substring(0, sep);
-            String rest = path.substring(sep + 1);
-            // TODO: Fix names with "?" characters
-            this.name = path.substring(pathToZarr.lastIndexOf("/") + 1);
-            if (this.name.contains("?")) {
-                this.name = this.name.substring(0, this.name.indexOf("?"));
-            }
-
-            store = new HttpStore(storePath).resolve(rest);
+            URI asUri = new URI(path);
+            URI base = new URI(
+                    asUri.getScheme(),
+                    asUri.getAuthority(),
+                    "/",
+                    asUri.getQuery(),
+                    asUri.getFragment());
+            store = new HttpStore(base.toString())
+                    .resolve(asUri.getPath().replaceFirst("/", ""));
         } else if (path.startsWith("s3")) {
-            String[] tmp = path.replaceFirst("s3://", "").split("/");
-            final String host = tmp[0];
-            final String bucket = tmp[1];
-            final String[] rest = Arrays.copyOfRange(tmp, 2, tmp.length);
-            // Remove all query parameters
-            String rawFinalPart = rest[rest.length - 1];
-            String[] pathAndQuery = splitOnQuery(rawFinalPart);
-            rest[rest.length - 1] = pathAndQuery[0];
-            this.name = String.join("/", rest);
-            // Extract URL parameters for authentication
-            Map<String, String> params = new HashMap<>();
-            String query = pathAndQuery[1];
-            if (query != null) {
-                if (query.startsWith("?")) {
-                    query = query.substring(1);
-                }
-                String[] pairs = query.split("&");
-                for (String pair : pairs) {
-                    int idx = pair.indexOf("=");
-                    if (idx > 0) {
-                        params.put(pair.substring(0, idx), pair.substring(idx + 1));
-                    }
-                }
-            }
-
-            URI endpoint = new URI("https://" + host);
+            S3Path s3path = new S3Path(path);
 
             S3ClientBuilder clientBuilder =  S3Client.builder()
                     .httpClientBuilder(UrlConnectionHttpClient.builder()
                             .socketTimeout(Duration.ofMinutes(5)));
-            clientBuilder.endpointOverride(endpoint);
-            clientBuilder.region(getRegionFromUri(endpoint));
+            clientBuilder.endpointOverride(new URI("https://" + s3path.host));
+            clientBuilder.region(s3path.getRegion());
 
             S3Configuration s3Config = S3Configuration.builder().pathStyleAccessEnabled(true)
                 .build();
@@ -169,80 +114,23 @@ public class ZarrStore {
 
             assertNoAwsSystemEnvCredentials();
 
-            if (params.containsKey("anonymous")) {
+            if (s3path.params.containsKey("anonymous")) {
                 clientBuilder.credentialsProvider(AnonymousCredentialsProvider.create());
             } else {
                 clientBuilder.credentialsProvider(
                         AwsCredentialsProviderChain.builder()
                         .addCredentialsProvider(ProfileCredentialsProvider
-                                .create(params.get("profile")))
+                                .create(s3path.params.get("profile")))
                         .addCredentialsProvider(
                                 InstanceProfileCredentialsProvider.create()).build());
             }
 
             S3Client client = clientBuilder.build();
-            store = new S3Store(client, bucket, null).resolve(rest);
+            store = new S3Store(client, s3path.bucket, null).resolve(s3path.key);
         } else {
             throw new IllegalArgumentException("Unsupported URI scheme: "
                     + path.subSequence(0, path.indexOf("://") + 3));
         }
-    }
-
-    /**
-     * Retrieves the AWS region from a given URI.  Defaults to
-     * {@link Region.US_EAST_1} if a region cannot be detected.
-     *
-     * @param uri URI to retrieve a region for
-     * @return The region
-     */
-    public static Region getRegionFromUri(URI uri) {
-        Optional<Region> region = AwsHostNameUtils.parseSigningRegion(uri.getHost(), null);
-        if (region.isPresent()) {
-            return region.get();
-        }
-        return Region.US_EAST_1;
-    }
-
-    /**
-     * A method to split a query-parameter-like segment from a string.
-     * this method assumes there will be no ? characters in the parameters.
-     * This means the method will only search from the last instance of the "?"
-     * character until the end of the string.
-     *
-     * @param uri The String to remove the parameter from
-     * @return A String array of size 2. First element is the path without the query
-     *         (or entire path if no query is found) and the second is the query string
-     *         or {@code null} if no query is found.
-     */
-    public static String[] splitOnQuery(String uri) {
-        String[] pathAndQuery = new String[2];
-        pathAndQuery[0] = uri;
-        int lastQuestionMarkIdx = uri.lastIndexOf("?");
-        if (lastQuestionMarkIdx != -1) {
-            String potentialQuery = uri.substring(lastQuestionMarkIdx);
-            if (potentialQuery.matches(QUERY_REGEX)) {
-                pathAndQuery[0] = uri.substring(0, lastQuestionMarkIdx);
-                pathAndQuery[1] = potentialQuery;
-            }
-        }
-        return pathAndQuery;
-    }
-
-    /**
-     * Removes trailing slashes from the path component of the given URI while preserving any
-     * query string. Trailing slashes otherwise produce empty path segments when the URI is
-     * split, which leads to malformed S3 keys such as {@code path//zarr.json}.
-     *
-     * @param orgPath the original URI, possibly ending in one or more slashes
-     * @return the URI with trailing slashes removed from the path component
-     */
-    static String normalizePath(String orgPath) {
-        String[] pathAndQuery = splitOnQuery(orgPath);
-        String normalized = pathAndQuery[0];
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized + (pathAndQuery[1] != null ? pathAndQuery[1] : "");
     }
 
     private void assertNoAwsSystemEnvCredentials() {
@@ -261,161 +149,6 @@ public class ZarrStore {
     }
 
     /**
-     * Opens and returns a Zarr group at the specified path.
-     *
-     * @param path the relative path to the group within the store (empty string for root group)
-     * @return the opened Group object
-     * @throws IOException if the group cannot be opened or does not exist
-     */
-    public Group getGroup(String path) throws IOException {
-        try {
-            if (path.isEmpty()) {
-                return Group.open(store);
-            } else {
-                return Group.open(store.resolve(path.split("/")));
-            }
-        } catch (Exception e) {
-            throw new IOException("Failed to open group at path: " + store + " / " + path, e);
-        }
-    }
-
-    /**
-     * Opens and returns a Zarr array at the specified path.
-     *
-     * @param path the relative path to the array within the store (empty string for root array)
-     * @return the opened Array object
-     * @throws IOException if the array cannot be opened or does not exist
-     */
-    public Array getArray(String path) throws IOException {
-        try {
-            if (path.isEmpty()) {
-                return Array.open(store);
-            } else {
-                return Array.open(store.resolve(path.split("/")));
-            }
-        } catch (Exception e) {
-            throw new IOException("Failed to open array at path: " + store + " / " + path, e);
-        }
-    }
-
-    /**
-     * Retrieves metadata from a Zarr array at the specified path.
-     *
-     * @param path the relative path to the array within the store
-     * @return a map containing metadata including shape, chunkShape and dataType
-     * @throws RuntimeException if the array cannot be accessed or metadata cannot be retrieved
-     */
-    public Map<String, Object> metadataFromArray(String path) {
-        try {
-            Array array = getArray(path);
-            return metadataFromArray(array);
-        } catch (IOException e) {
-            throw new RuntimeException(
-                "Failed to get array metadata from path: " + store + " / " + path, e);
-        }
-    }
-
-    /**
-     * Extracts metadata from a Zarr array object.
-     *
-     * <p>The returned map contains:</p>
-     * <ul>
-     * <li>shape - The dimensions of the array</li>
-     * <li>chunkShape - The chunk dimensions</li>
-     * <li>dataType - The data type of array elements</li>
-     * </ul>
-     *
-     * @param array the Array object to extract metadata from
-     * @return a map containing the array metadata
-     */
-    public Map<String, Object> metadataFromArray(Array array) {
-        Map<String, Object> res = new HashMap<>();
-        ArrayMetadata m = array.metadata();
-        if (array instanceof dev.zarr.zarrjava.v3.Array) {
-            dev.zarr.zarrjava.v3.ArrayMetadata m3 = (dev.zarr.zarrjava.v3.ArrayMetadata) m;
-            Optional<Codec> shardingCodec = m3.getShardingIndexedCodec(m3.codecs);
-            int[] chunkShape = m3.chunkShape();
-            while (shardingCodec.isPresent()) {
-                ShardingIndexedCodec.Configuration shardingConfig =
-                    ((ShardingIndexedCodec) shardingCodec.get()).configuration;
-                chunkShape = shardingConfig.chunkShape;
-                shardingCodec = m3.getShardingIndexedCodec(shardingConfig.codecs);
-            }
-            res.put("chunkShape", chunkShape);
-        } else {
-            dev.zarr.zarrjava.v2.ArrayMetadata m2 = (dev.zarr.zarrjava.v2.ArrayMetadata) m;
-            res.put("chunkShape", m2.chunkShape());
-        }
-        res.put("shape", m.shape);
-        res.put("dataType", m.dataType());
-        return res;
-    }
-
-    /**
-     * Retrieves metadata (group or array) from a Zarr node at the specified path.
-     *
-     * @param path the relative path to the node within the store
-     * @return a map containing metadata
-     * @throws RuntimeException if the node cannot be accessed or metadata cannot be retrieved
-     */
-    public Map<String, Object> metadata(String path) {
-        try {
-            Node node = null;
-            if (path.isEmpty()) {
-                node = Node.open(store);
-            } else {
-                node = Node.open(store.resolve(path.split("/")));
-            }
-            if (node instanceof Array) {
-                return metadataFromArray((Array) node);
-            } else if (node instanceof Group) {
-                return metadataFromGroup((Group) node);
-            } else {
-                throw new RuntimeException(
-                    "Failed to get metadata from path: " + store + " / " + path);
-            }
-        } catch (IOException | ZarrException e) {
-            throw new RuntimeException(
-                "Failed to get array metadata from path: " + store + " / " + path, e);
-        }
-    }
-
-    /**
-     * Retrieves metadata from a Zarr group at the specified path.
-     *
-     * @param path the relative path to the group within the store
-     * @return a map containing the group's attributes
-     * @throws RuntimeException if the group cannot be accessed or metadata cannot be retrieved
-     */
-    public Map<String, Object> metadataFromGroup(String path) {
-        try {
-            Group group = getGroup(path);
-            return metadataFromGroup(group);
-        } catch (IOException e) {
-            throw new RuntimeException(
-                "Failed to get group metadata from path: " + store + " / " + path, e);
-        }
-    }
-
-    /**
-     * Extracts metadata attributes from a Zarr group object.
-     *
-     * <p>This method handles both Zarr v2 and v3 group formats.</p>
-     *
-     * @param group the Group object to extract metadata from
-     * @return a map containing the group's attributes
-     */
-    public Map<String, Object> metadataFromGroup(Group group) {
-        if (group instanceof dev.zarr.zarrjava.v2.Group) {
-            dev.zarr.zarrjava.v2.GroupMetadata m = ((dev.zarr.zarrjava.v2.Group) group).metadata;
-            return m.attributes;
-        } else {
-            dev.zarr.zarrjava.v3.GroupMetadata m = ((dev.zarr.zarrjava.v3.Group) group).metadata;
-            return m.attributes;
-        }
-    }
-
-    /**
      * Returns the underlying store handle.
      *
      * @return the StoreHandle for this Zarr location
@@ -425,31 +158,13 @@ public class ZarrStore {
     }
 
     /**
-     * Returns the name of the Zarr.
-     *
-     * @return the name (typically the .zarr directory name)
-     */
-    public String getName() {
-        return name;
-    }
-
-    /**
-     * Returns the full path to the Zarr.
-     *
-     * @return the complete path
-     */
-    public String getPath() {
-        return path;
-    }
-
-    /**
      * Returns a string representation of this Zarr store.
      *
      * @return a string containing the path and name of the store
      */
     @Override
     public String toString() {
-        return "ZarrStore {" + "path = " + path + " , name = " + name + "}";
+        return "ZarrStore {" + "path = " + path + "}";
     }
 
     /**
@@ -479,5 +194,75 @@ public class ZarrStore {
     @Override
     public int hashCode() {
         return Objects.hash(path);
+    }
+
+    static class S3Path {
+
+        static final Pattern QUERY_REGEX = Pattern.compile("\\?.+=.+");
+
+        final String host;
+
+        final String bucket;
+
+        final String key;
+
+        final Map<String, String> params = new HashMap<String, String>();
+
+        public S3Path(String uri) {
+            List<String> parts = new ArrayList<>(
+                    Arrays.asList(uri.replaceFirst("s3://", "").split("/")));
+            host = parts.remove(0);
+            bucket = parts.remove(0);
+            // Remove all query parameters, strip trailing slashes
+            String[] pathAndQuery = splitOnQuery(parts.get(parts.size() - 1));
+            parts.set(parts.size() - 1, pathAndQuery[0]);
+            key  = String.join("/", parts).replaceAll("/+$", "");
+            // Extract URL parameters for authentication
+            String query = pathAndQuery[1].replaceFirst("\\?", "");
+            for (String pair : query.split("&")) {
+                int idx = pair.indexOf("=");
+                if (idx > 0) {
+                    params.put(pair.substring(0, idx), pair.substring(idx + 1));
+                }
+            }
+        }
+
+        /**
+         * A method to split a query-parameter-like segment from a string.
+         * this method assumes there will be no ? characters in the parameters.
+         * This means the method will only search from the last instance of the "?"
+         * character until the end of the string.
+         *
+         * @param uri The String to remove the parameter from
+         * @return A String array of size 2. First element is the path without the query
+         *         (or entire path if no query is found) and the second is the query string
+         *         which will be an empty string if no query is found.
+         */
+        public String[] splitOnQuery(String uri) {
+            int idx = uri.lastIndexOf("?");
+            if (idx < 0) {
+                return new String[] { uri, "" };
+            }
+
+            String query = uri.substring(idx);
+            if (!QUERY_REGEX.matcher(query).matches()) {
+                return new String[] { uri, "" };
+            }
+            return new String[] {
+                 uri.substring(0, idx), uri.substring(idx + 1)
+            };
+        }
+
+        /**
+         * Retrieves the AWS region for this S3 path.  Defaults to
+         * {@link Region.US_EAST_1} if a region cannot be detected.
+         *
+         * @param uri URI to retrieve a region for
+         * @return The region
+         */
+        public Region getRegion() {
+            return AwsHostNameUtils.parseSigningRegion(host, null)
+                    .orElse(Region.US_EAST_1);
+        }
     }
 }

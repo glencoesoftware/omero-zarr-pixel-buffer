@@ -22,9 +22,11 @@ import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.zarr.zarrjava.ZarrException;
 import dev.zarr.zarrjava.core.Array;
+import dev.zarr.zarrjava.core.ArrayMetadata;
 import dev.zarr.zarrjava.core.Attributes;
-import dev.zarr.zarrjava.core.DataType;
 import dev.zarr.zarrjava.core.Group;
+import dev.zarr.zarrjava.v3.codec.Codec;
+import dev.zarr.zarrjava.v3.codec.core.ShardingIndexedCodec;
 import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
@@ -35,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.LongStream;
 import loci.formats.FormatTools;
@@ -244,15 +247,52 @@ public class ZarrPixelBuffer implements PixelBuffer {
      *
      * @return See above.
      */
-    public int[][] getChunks() throws IOException {
-        List<Map<String, String>> datasets = getDatasets();
-        List<int[]> chunks = new ArrayList<int[]>();
-        for (Map<String, String> dataset : datasets) {
-            Map<String, Object> arrayMetadata = root.metadataFromArray(dataset.get("path"));
-            int[] shape = (int[]) arrayMetadata.get("chunkShape");
-            chunks.add(shape);
+    public int[][] getChunks() {
+        int resolutionLevels = getResolutionLevels();
+        int[][] chunks = new int[resolutionLevels][];
+        for (int i = 0; i < resolutionLevels; i++) {
+            chunks[i] = getChunks(i);
         }
-        return chunks.toArray(new int[chunks.size()][]);
+        return chunks;
+    }
+
+    /**
+     * Retrieves the array chunk sizes of a single subresolution.
+     *
+     * @param resolutionLevel the resolution level to get chunk sizes for
+     * @return See above.
+     */
+    private int[] getChunks(int resolutionLevel) {
+        Map<String, String> dataset = getDatasets().get(resolutionLevel);
+        try {
+            Array array = zarrArrayCache.get(
+                    new ZarrPath(root, dataset.get("path"))).get();
+            ArrayMetadata metadata = array.metadata();
+            int[] chunkShape = metadata.chunkShape();
+            if (array instanceof dev.zarr.zarrjava.v3.Array) {
+                // A Zarr v3 array which may be sharded.  If sharding is
+                // present we'll need to loop through a potentially nested
+                // set of shards to find the actual chunk size.
+                dev.zarr.zarrjava.v3.ArrayMetadata metadata3 =
+                        (dev.zarr.zarrjava.v3.ArrayMetadata) metadata;
+                Optional<Codec> shardingCodec =
+                        dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                metadata3.codecs);
+                chunkShape = metadata3.chunkShape();
+                while (shardingCodec.isPresent()) {
+                    ShardingIndexedCodec.Configuration shardingConfig =
+                        ((ShardingIndexedCodec) shardingCodec.get()).configuration;
+                    chunkShape = shardingConfig.chunkShape;
+                    shardingCodec =
+                            dev.zarr.zarrjava.v3.ArrayMetadata.getShardingIndexedCodec(
+                                    shardingConfig.codecs);
+                }
+            }
+            return chunkShape;
+        } catch (Exception e) {
+            // FIXME: Throw the right exception
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -909,7 +949,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
     @Override
     public Dimension getTileSize() {
         try {
-            int[] chunks = getChunks()[resolutionLevel];
+            int[] chunks = getChunks(resolutionLevel);
             return new Dimension(chunks[axesOrder.get(Axis.X)], chunks[axesOrder.get(Axis.Y)]);
         } catch (Exception e) {
             // FIXME: Throw the right exception
@@ -919,21 +959,16 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     @Override
     public List<List<Integer>> getResolutionDescriptions() {
-        try {
-            int resolutionLevels = getResolutionLevels();
-            List<List<Integer>> resolutionDescriptions = new ArrayList<List<Integer>>();
-            int sizeX = pixels.getSizeX();
-            int sizeY = pixels.getSizeY();
-            for (int i = 0; i < resolutionLevels; i++) {
-                double scale = Math.pow(2, i);
-                resolutionDescriptions
-                    .add(Arrays.asList((int) (sizeX / scale), (int) (sizeY / scale)));
-            }
-            return resolutionDescriptions;
-        } catch (Exception e) {
-            // FIXME: Throw the right exception
-            throw new RuntimeException(e);
+        int resolutionLevels = getResolutionLevels();
+        List<List<Integer>> resolutionDescriptions = new ArrayList<List<Integer>>();
+        int sizeX = pixels.getSizeX();
+        int sizeY = pixels.getSizeY();
+        for (int i = 0; i < resolutionLevels; i++) {
+            double scale = Math.pow(2, i);
+            resolutionDescriptions
+                .add(Arrays.asList((int) (sizeX / scale), (int) (sizeY / scale)));
         }
+        return resolutionDescriptions;
     }
 
 }
