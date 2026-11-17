@@ -211,18 +211,6 @@ public class ZarrPixelBuffer implements PixelBuffer {
         // Check planar read size (sizeX and sizeY only)
         checkReadSize(new long[] { shape[axesOrder.get(Axis.X)], shape[axesOrder.get(Axis.Y)] });
 
-        // if reading from a resolution downsampled in Z,
-        // adjust the shape/offset for the Z coordinate only
-        // this ensures that the correct Zs are read from the correct offsets
-        // since the requested shape/offset may not match the underlying array
-        long originalZIndex = 1;
-        if (axesOrder.containsKey(Axis.Z)) {
-            originalZIndex = offset[axesOrder.get(Axis.Z)];
-            if (getSizeZ() != getTrueSizeZ()) {
-                offset[axesOrder.get(Axis.Z)] = zIndexMap.get(originalZIndex);
-                shape[axesOrder.get(Axis.Z)] = 1;
-            }
-        }
         try {
             ByteBuffer asByteBuffer = ByteBuffer.wrap(buffer);
             asByteBuffer.put(array.read(offset, shape).getDataAsByteBuffer());
@@ -573,7 +561,15 @@ public class ZarrPixelBuffer implements PixelBuffer {
             }
             if (axesOrder.containsKey(Axis.Z)) {
                 shape[axesOrder.get(Axis.Z)] = 1;
-                offset[axesOrder.get(Axis.Z)] = z;
+                // if reading from a resolution downsampled in Z,
+                // adjust the shape/offset for the Z coordinate only
+                // this ensures that the correct Zs are read from the correct offsets
+                // since the requested shape/offset may not match the underlying array
+                if (getSizeZ() != getTrueSizeZ()) {
+                    offset[axesOrder.get(Axis.Z)] = zIndexMap.get(z);
+                } else {
+                    offset[axesOrder.get(Axis.Z)] = z;
+                }
             }
             shape[axesOrder.get(Axis.Y)] = h;
             shape[axesOrder.get(Axis.X)] = w;
@@ -685,7 +681,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
             offset[axesOrder.get(Axis.C)] = c;
         }
         if (axesOrder.containsKey(Axis.Z)) {
-            shape[axesOrder.get(Axis.Z)] = getSizeZ();
+            shape[axesOrder.get(Axis.Z)] = getTrueSizeZ();
             offset[axesOrder.get(Axis.Z)] = z;
         }
         shape[axesOrder.get(Axis.Y)] = h;
@@ -730,7 +726,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
             offset[axesOrder.get(Axis.C)] = c;
         }
         if (axesOrder.containsKey(Axis.Z)) {
-            shape[axesOrder.get(Axis.Z)] = getSizeZ();
+            shape[axesOrder.get(Axis.Z)] = getTrueSizeZ();
             offset[axesOrder.get(Axis.Z)] = z;
         }
         shape[axesOrder.get(Axis.Y)] = h;
