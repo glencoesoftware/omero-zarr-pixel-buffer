@@ -514,10 +514,14 @@ public class ZarrPixelBufferTest {
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, sizeX, sizeY, 4, 1, 1, "", null);
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            int[][] chunks = zpb.getChunks();
+            assertEquals(chunks.length, resolutions);
             for (int resolution = 0; resolution < resolutions; resolution++) {
                 int scale = (int) Math.pow(2, resolution);
                 int expectedWidth = Math.min(tileWidth, sizeX / scale);
                 int expectedHeight = Math.min(tileHeight, sizeY / scale);
+                int[] expectedChunks = new int[] {1, 1, chunkDepth, expectedHeight, expectedWidth};
+                assertArrayEquals(chunks[resolution], expectedChunks);
 
                 zpb.setResolutionLevel(resolutions - resolution - 1);
                 assertEquals(zpb.getTileSize().getWidth(), expectedWidth);
@@ -562,10 +566,14 @@ public class ZarrPixelBufferTest {
         ZarrStore store = new ZarrStore(output.resolve("0").toString());
         Pixels pixels = new Pixels(null, null, sizeX, sizeY, 4, 1, 1, "", null);
         try (ZarrPixelBuffer zpb = createPixelBuffer(pixels, store, 1024, 1024)) {
+            int[][] chunks = zpb.getChunks();
+            assertEquals(chunks.length, resolutions);
             for (int resolution = 0; resolution < resolutions; resolution++) {
                 int scale = (int) Math.pow(2, resolution);
                 int expectedWidth = Math.min(tileWidth, sizeX / scale);
                 int expectedHeight = Math.min(tileHeight, sizeY / scale);
+                int[] expectedChunks = new int[] {1, 1, chunkDepth, expectedHeight, expectedWidth};
+                assertArrayEquals(chunks[resolution], expectedChunks);
 
                 zpb.setResolutionLevel(resolutions - resolution - 1);
                 assertEquals(zpb.getTileSize().getWidth(), expectedWidth);
