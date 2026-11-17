@@ -681,7 +681,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
             offset[axesOrder.get(Axis.C)] = c;
         }
         if (axesOrder.containsKey(Axis.Z)) {
-            shape[axesOrder.get(Axis.Z)] = getSizeZ();
+            shape[axesOrder.get(Axis.Z)] = getTrueSizeZ();
             offset[axesOrder.get(Axis.Z)] = z;
         }
         shape[axesOrder.get(Axis.Y)] = h;
@@ -726,7 +726,7 @@ public class ZarrPixelBuffer implements PixelBuffer {
             offset[axesOrder.get(Axis.C)] = c;
         }
         if (axesOrder.containsKey(Axis.Z)) {
-            shape[axesOrder.get(Axis.Z)] = getSizeZ();
+            shape[axesOrder.get(Axis.Z)] = getTrueSizeZ();
             offset[axesOrder.get(Axis.Z)] = z;
         }
         shape[axesOrder.get(Axis.Y)] = h;
