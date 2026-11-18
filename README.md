@@ -45,8 +45,6 @@ The data must meet the following requirements:
     (t, c, z, y, x)
 -   the resolution levels must be downsampled alongside the spatial dimensions,
     either alongside the (y, x) or the (z, y, x) axes
--   the scaling factor alongside the y and the x axes between all consecutive resolution
-    levels must be equal to two
 
 An OMERO Image or Mask object can be associated to Zarr by setting its
 [ExternalInfo](https://docs.openmicroscopy.org/omero-blitz/5.8.3/slice2html/omero/model/ExternalInfo.html)
