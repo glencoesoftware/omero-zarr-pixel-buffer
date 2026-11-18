@@ -959,14 +959,18 @@ public class ZarrPixelBuffer implements PixelBuffer {
 
     @Override
     public List<List<Integer>> getResolutionDescriptions() {
-        int resolutionLevels = getResolutionLevels();
+        String[] resolutionPaths = getResolutionPaths();
         List<List<Integer>> resolutionDescriptions = new ArrayList<List<Integer>>();
-        int sizeX = pixels.getSizeX();
-        int sizeY = pixels.getSizeY();
-        for (int i = 0; i < resolutionLevels; i++) {
-            double scale = Math.pow(2, i);
-            resolutionDescriptions
-                .add(Arrays.asList((int) (sizeX / scale), (int) (sizeY / scale)));
+        try {
+            for (int i = 0; i < resolutionPaths.length; i++) {
+                Array resolutionArray = zarrArrayCache.get(
+                    new ZarrPath(root, resolutionPaths[i])).get();
+                long[] shape = resolutionArray.metadata().shape;
+                resolutionDescriptions.add(Arrays.asList(
+                    (int) shape[axesOrder.get(Axis.X)], (int) shape[axesOrder.get(Axis.Y)]));
+            }
+        } catch  (ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
         }
         return resolutionDescriptions;
     }
